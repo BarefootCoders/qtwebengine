@@ -70,12 +70,24 @@ int main(int argc, char **argv)
     Utils utils;
     appEngine.rootContext()->setContextProperty("utils", &utils);
     appEngine.load(QUrl("qrc:/ApplicationRoot.qml"));
+
     QObject *rootObject = appEngine.rootObjects().first();
 
     QQuickWebEngineProfile *profile = new QQuickWebEngineProfile(rootObject);
 
     const QMetaObject *rootMeta = rootObject->metaObject();
-    int index = rootMeta->indexOfProperty("testProfile");
+
+    int index = rootMeta->indexOfProperty("thirdPartyCookiesEnabled");
+    Q_ASSERT(index != -1);
+    QMetaProperty thirdPartyCookiesProperty = rootMeta->property(index);
+    profile->cookieStore()->setCookieFilter(
+            [rootObject,&thirdPartyCookiesProperty](QWebEngineCookieStore::FilterRequest &request)
+            {
+                request.accepted = !request.thirdParty || thirdPartyCookiesProperty.read(rootObject).toBool();
+            });
+
+    index = rootMeta->indexOfProperty("testProfile");
+
     Q_ASSERT(index != -1);
     QMetaProperty profileProperty = rootMeta->property(index);
     profileProperty.write(rootObject, qVariantFromValue(profile));
