@@ -116,12 +116,15 @@ int NetworkDelegateQt::OnBeforeURLRequest(net::URLRequest *request, const net::C
     const QUrl qUrl = toQt(request->url());
 
     QWebEngineUrlRequestInterceptor* interceptor = m_requestContextGetter->m_requestInterceptor;
+
     if (interceptor) {
+        int routeId = resourceInfo->GetRouteID();
+
         QWebEngineUrlRequestInfoPrivate *infoPrivate = new QWebEngineUrlRequestInfoPrivate(toQt(resourceType),
                                                                                            toQt(navigationType),
                                                                                            qUrl,
                                                                                            toQt(request->first_party_for_cookies()),
-                                                                                           QByteArray::fromStdString(request->method()));
+                                                                                           QByteArray::fromStdString(request->method()), routeId);
         QWebEngineUrlRequestInfo requestInfo(infoPrivate);
         interceptor->interceptRequest(requestInfo);
         if (requestInfo.changed()) {

@@ -185,6 +185,8 @@ public:
     bool canViewSource();
     void focusIfNecessary();
     bool isFindTextInProgress() const;
+    const int frameId();
+
 
 
 private:

@@ -1538,6 +1538,12 @@ void WebContentsAdapter::viewSource()
     d->webContents->ViewSource();
 }
 
+const int WebContentsAdapter::frameId()
+{
+    Q_D(WebContentsAdapter);
+    return d->webContents->GetRenderViewHost()->GetRoutingID();
+}
+
 bool WebContentsAdapter::canViewSource()
 {
     Q_D(WebContentsAdapter);

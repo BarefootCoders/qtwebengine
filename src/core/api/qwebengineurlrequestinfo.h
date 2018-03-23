@@ -95,6 +95,7 @@ public:
 
     QUrl requestUrl() const;
     QUrl firstPartyUrl() const;
+    const int frameId() const;
     QByteArray requestMethod() const;
     bool changed() const;
 

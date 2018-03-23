@@ -274,6 +274,8 @@ public:
     qreal zoomFactor() const;
     void setZoomFactor(qreal factor);
 
+    const int frameId() const;
+
     QPointF scrollPosition() const;
     QSizeF contentsSize() const;
 
