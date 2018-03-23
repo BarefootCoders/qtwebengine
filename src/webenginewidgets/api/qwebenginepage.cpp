@@ -1935,6 +1935,12 @@ qreal QWebEnginePage::zoomFactor() const
     return d->adapter->currentZoomFactor();
 }
 
+const int QWebEnginePage::frameId() const 
+{
+    Q_D(const QWebEnginePage);
+    return d->adapter->frameId();
+}
+
 void QWebEnginePage::setZoomFactor(qreal factor)
 {
     Q_D(QWebEnginePage);

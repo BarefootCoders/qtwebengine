@@ -52,8 +52,9 @@
 //
 
 #include "qtwebenginecoreglobal_p.h"
-
 #include "qwebengineurlrequestinfo.h"
+
+#include "base/callback.h"
 
 #include <QByteArray>
 #include <QHash>
@@ -73,7 +74,8 @@ public:
                                     , QWebEngineUrlRequestInfo::NavigationType navigation
                                     , const QUrl &u
                                     , const QUrl &fpu
-                                    , const QByteArray &m);
+                                    , const QByteArray &m
+                                    , const base::Callback<int(void)> fidGetter);
 
     QWebEngineUrlRequestInfo::ResourceType resourceType;
     QWebEngineUrlRequestInfo::NavigationType navigationType;
@@ -82,6 +84,7 @@ public:
     QUrl url;
     QUrl firstPartyUrl;
     const QByteArray method;
+    base::Callback<int(void)> frameIdGetter;
     bool changed;
     QHash<QByteArray, QByteArray> extraHeaders;
 
