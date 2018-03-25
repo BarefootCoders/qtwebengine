@@ -1,0 +1,17 @@
+machine:
+  xcode:
+    version: 9.0
+dependencies:
+  pre:
+    - brew install qt
+checkout:
+  post:
+    - git submodule sync
+    - git submodule update --recursive --init
+compile:
+  override:
+    - qmake -r CONFIG+=release PREFIX=/usr/local/Cellar/qt5/5.10.1
+    - make
+test:
+  override:
+    - "true"
