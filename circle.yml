@@ -11,9 +11,11 @@ checkout:
 compile:
   override:
     - rm -rf examples 
-    - /usr/local/opt/qt/bin/qmake -r CONFIG+=release CONFIG-=create_cmake PREFIX=/usr/local/Cellar/qt5/5.10.1
+    - /usr/local/opt/qt/bin/qmake -r CONFIG+=release PREFIX=/usr/local/Cellar/qt5/5.10.1
     - make
     - INSTALL_ROOT=$HOME/out make install
+    - mkdir -p $CIRCLE_ARTIFACTS
+    - tar -cjf $CIRCLE_ARTIFACTS/qtwebengine.tar.bz2 -C $HOME/out .
 test:
   override:
     - "true"
