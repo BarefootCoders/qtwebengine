@@ -1,0 +1,56 @@
+environment:
+  QTDIR: c:\Qt\5.10.1\msvc2015
+
+image: 'Visual Studio 2015'
+
+init:
+  - git config --global core.autocrlf input
+
+cache:
+  - C:\gperf\gperf.exe -> appveyor.yml
+
+install:
+  - git submodule update --init --recursive --depth 1 --jobs 6
+  ############################################################################
+  # All external dependencies are installed in C:\projects\deps
+  ############################################################################
+  - mkdir C:\projects\deps
+  - cd C:\projects\deps
+
+  ############################################################################
+  # Install Ninja
+  ############################################################################
+  - set NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v1.6.0/ninja-win.zip"
+  - appveyor DownloadFile %NINJA_URL% -FileName ninja.zip
+  - 7z x ninja.zip -oC:\projects\deps\ninja > nul
+  - set PATH=C:\projects\deps\ninja;%PATH%
+  - ninja --version
+   
+   # flex/bison
+  - cinst winflexbison
+  - rename c:\ProgramData\chocolatey\bin\win_flex.exe flex.exe
+  - rename c:\ProgramData\chocolatey\bin\win_bison.exe bison.exe
+
+  # gperf
+  - if not exist C:\gperf\gperf.exe curl -o %TEMP%\gperf.zip http://kent.dl.sourceforge.net/project/gnuwin32/gperf/3.0.1/gperf-3.0.1-bin.zip && mkdir C:\gperf && cd C:\gperf && 7z e %TEMP%\gperf.zip bin\gperf.exe && cd %APPVEYOR_BUILD_FOLDER%
+  - set PATH=c:\gperf;%PATH%
+
+before_build:
+  - call "C:\Program Files (x86)\Microsoft Visual Studio\2015\Community\VC\Auxiliary\Build\vcvars32.bat"
+
+build_script:
+  - %QTDIR%\bin\qmake -r CONFIG+=release PREFIX=%QTDIR%
+  - nmake
+  - mkdir out
+  - set INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out
+  - nmake install
+  - cd out
+  - 7z %APPVEYOR_BUILD_FOLDER%\qtwebengine-win.7z Qt
+  - cd %APPVEYOR_BUILD_FOLDER%
+
+artifacts:
+  - path: qtwebengine-win.7z
+    name: qtwebengine-win.7z
+
+
+test: off
