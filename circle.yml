@@ -10,8 +10,9 @@ checkout:
     - git submodule update --recursive --init
 compile:
   override:
-    - qmake -r CONFIG+=release PREFIX=/usr/local/Cellar/qt5/5.10.1
+    - /usr/local/opt/qt/bin/qmake -r CONFIG+=release PREFIX=/usr/local/Cellar/qt5/5.10.1
     - make
+    - INSTALL_ROOT=$HOME/out make install
 test:
   override:
     - "true"
