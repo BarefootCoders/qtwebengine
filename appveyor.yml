@@ -1,7 +1,8 @@
 environment:
   QTDIR: c:\Qt\5.10.1\msvc2015
 
-image: 'Visual Studio 2015'
+build_cloud: 'Blindcut-GCE'
+image: 'appveyor-vm-2018-03-29'
 
 init:
   - git config --global core.autocrlf input
@@ -25,7 +26,7 @@ install:
   - 7z x ninja.zip -oC:\projects\deps\ninja > nul
   - set PATH=C:\projects\deps\ninja;%PATH%
   - ninja --version
-   
+
    # flex/bison
   - cinst winflexbison
   - rename c:\ProgramData\chocolatey\bin\win_flex.exe flex.exe
