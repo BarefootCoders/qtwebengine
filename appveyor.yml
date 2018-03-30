@@ -2,7 +2,7 @@ environment:
   QTDIR: c:\Qt\5.10.1\msvc2015
 
 build_cloud: 'Blindcut-GCE'
-image: 'appveyor-vm-2018-03-29'
+image: 'GCE'
 
 init:
   - git config --global core.autocrlf input
