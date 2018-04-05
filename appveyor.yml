@@ -1,7 +1,7 @@
 environment:
-  QTDIR: c:\Qt\5.10.1\msvc2015
-
-image: 'Visual Studio 2015'
+  QTDIR: c:\Qt\5.10.1\5.10.1\msvc2015
+  build_cloud: 'Blindcut-GCE'
+  image: 'GCE'
 
 init:
   - git config --global core.autocrlf input
@@ -25,7 +25,7 @@ install:
   - 7z x ninja.zip -oC:\projects\deps\ninja > nul
   - set PATH=C:\projects\deps\ninja;%PATH%
   - ninja --version
-   
+
    # flex/bison
   - cinst winflexbison
   - rename c:\ProgramData\chocolatey\bin\win_flex.exe flex.exe
@@ -40,10 +40,10 @@ before_build:
   - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
 
 build_script:
-  - '%QTDIR%\bin\qmake -r CONFIG+=release PREFIX=%QTDIR%'
+  - '%QTDIR%\bin\qmake -r CONFIG+=release PREFIX=\Qt\5.10.1\msvc2015'
   - nmake
   - mkdir out
-  - set INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out
+  - 'set INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out'
   - nmake install
   - cd out
   - 7z %APPVEYOR_BUILD_FOLDER%\qtwebengine-win.7z Qt
