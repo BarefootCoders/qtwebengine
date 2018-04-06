@@ -1,7 +1,8 @@
 environment:
   QTDIR: c:\Qt\5.10.1\5.10.1\msvc2015
-  build_cloud: 'Blindcut-GCE'
-  image: 'GCE'
+  
+build_cloud: 'Blindcut-GCE'
+image: 'GCE'
 
 init:
   - git config --global core.autocrlf input
@@ -40,7 +41,7 @@ before_build:
   - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
 
 build_script:
-  - c:\Qt\5.10.1\5.10.1\msvc201\bin\qmake -r CONFIG+=release PREFIX=\Qt\5.10.1\msvc2015
+  - c:\Qt\5.10.1\5.10.1\msvc2015\bin\qmake -r CONFIG+=release PREFIX=\Qt\5.10.1\msvc2015
   - nmake
   - mkdir out
   - 'set INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out'
