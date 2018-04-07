@@ -41,10 +41,10 @@ before_build:
   - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
 
 build_script:
-  - c:\Qt\5.10.1\5.10.1\msvc2015\bin\qmake -r CONFIG+=release PREFIX=\Qt\5.10.1\msvc2015
+  - c:\Qt\5.10.1\5.10.1\msvc2015\bin\qmake -r CONFIG+=release PREFIX=c:\Qt\5.10.1\msvc2015
   - nmake
   - mkdir out
-  - 'set INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out'
+#  - 'set INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out'
   - nmake install
   - cd out
   - 7z %APPVEYOR_BUILD_FOLDER%\qtwebengine-win.7z Qt
