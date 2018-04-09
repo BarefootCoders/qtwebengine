@@ -53,5 +53,25 @@ artifacts:
   - path: qtwebengine-win.7z
     name: qtwebengine-win.7z
 
+deploy:
+  - provider: S3
+    access_key_id: AKIAIUUOHQHDMLTNHLGA
+    secret_access_key:
+       secure: +m3JEWk1qJIUceZF3BrBqoD3Ns1cu9WsAiyhBhoWZKYDzvd6Rh0QItOmBSLtqiYQ
+    bucket: dependencies.build.ops.blindcut-vpn.com
+    region: us-east-1
+    folder: qtwebengine/$(APPVEYOR_REPO_COMMIT)
+    artifact: qtwebengine-win.7z
+  - provider: S3
+    access_key_id: AKIAIUUOHQHDMLTNHLGA
+    secret_access_key:
+       secure: +m3JEWk1qJIUceZF3BrBqoD3Ns1cu9WsAiyhBhoWZKYDzvd6Rh0QItOmBSLtqiYQ
+    bucket: dependencies.build.ops.blindcut-vpn.com
+    region: us-east-1
+    folder: qtwebengine/latest
+    artifact: qtwebengine-win.7z
+    on:
+      branch: 5.10-barefoot
+
 
 test: off
