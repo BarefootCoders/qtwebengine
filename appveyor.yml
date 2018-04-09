@@ -44,9 +44,11 @@ build_script:
   - c:\Qt\5.10.1\msvc2015\bin\qmake -r CONFIG+=release PREFIX=c:\Qt\5.10.1\msvc2015
   - nmake
   - mkdir out
-  - nmake "INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out" install
+#  - 'set INSTALL_ROOT=%APPVEYOR_BUILD_FOLDER%\out'
+  - nmake install
   - cd out
-  - 7z a %APPVEYOR_BUILD_FOLDER%\qtwebengine-win.7z out
+  - cd c:\
+  - 7z a %APPVEYOR_BUILD_FOLDER%\qtwebengine-win.7z Qt/5.10.1/msvc2015
   - cd %APPVEYOR_BUILD_FOLDER%
 
 artifacts:
