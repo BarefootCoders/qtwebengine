@@ -57,17 +57,17 @@ artifacts:
 
 deploy:
   - provider: S3
-    access_key_id: AKIAIUUOHQHDMLTNHLGA
+    access_key_id: AKIAJG36GKH2U36V3Y6Q
     secret_access_key:
-       secure: +m3JEWk1qJIUceZF3BrBqoD3Ns1cu9WsAiyhBhoWZKYDzvd6Rh0QItOmBSLtqiYQ
+       secure: i7zXTgbsIySKYOQetZ0DbDmy+xDkvDVRyzJhPBLIerzpvuPd+AW6i4kDPNQGdFNI
     bucket: dependencies.build.ops.blindcut-vpn.com
     region: us-east-1
     folder: qtwebengine/$(APPVEYOR_REPO_COMMIT)
     artifact: qtwebengine-win.7z
   - provider: S3
-    access_key_id: AKIAIUUOHQHDMLTNHLGA
+    access_key_id: AKIAJG36GKH2U36V3Y6Q
     secret_access_key:
-       secure: +m3JEWk1qJIUceZF3BrBqoD3Ns1cu9WsAiyhBhoWZKYDzvd6Rh0QItOmBSLtqiYQ
+       secure: i7zXTgbsIySKYOQetZ0DbDmy+xDkvDVRyzJhPBLIerzpvuPd+AW6i4kDPNQGdFNI
     bucket: dependencies.build.ops.blindcut-vpn.com
     region: us-east-1
     folder: qtwebengine/latest
