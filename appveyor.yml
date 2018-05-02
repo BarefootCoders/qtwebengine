@@ -58,9 +58,9 @@ artifacts:
 test: off
 deploy:
   - provider: S3
-    access_key_id: AKIAJW2PENSGIMQGU6FQ
+    access_key_id: AKIAJEZZT7WAYE2THGMQ
     secret_access_key:
-       secure: fxt7KDC5LlS8lv4+uQINcLYYMr5Ou31Z6EgXKogyE/I2EFwh/e12ZJycjHR0P0nS
+       secure: Ya3QWayt7vKN5oqJnCwBW6k9LsAdtGrmbplYwVovWgaOk5kEcAhfIsL+cHpV47K0
     bucket: dependencies.build.ops.blindcut-vpn.com
     region: us-east-1
     folder: win32/qtwebengine/$(APPVEYOR_REPO_COMMIT)
