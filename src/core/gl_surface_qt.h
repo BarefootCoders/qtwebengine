@@ -57,7 +57,7 @@ public:
     void *GetDisplay() override;
     void *GetConfig() override;
     bool IsOffscreen() override;
-    gfx::SwapResult SwapBuffers() override;
+    gfx::SwapResult SwapBuffers(const PresentationCallback &callback) override;
     gfx::Size GetSize() override;
     GLSurfaceFormat GetFormat() override;
 
@@ -67,6 +67,11 @@ protected:
 
     gfx::Size m_size;
     GLSurfaceFormat m_format;
+
+public:
+    static void* g_config;
+    static void* g_display;
+    static const char* g_extensions;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(GLSurfaceQt);

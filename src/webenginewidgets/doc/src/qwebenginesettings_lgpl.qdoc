@@ -94,6 +94,8 @@
     \value  JavascriptCanAccessClipboard
             Allows JavaScript programs to read from and write to the clipboard.
             Writing to the clipboard is always allowed if it is specifically requested by the user.
+            See JavascriptCanPaste to also allow pasting the content of the clipboard content from
+            JavaScript.
             Disabled by default.
     \value  LinksIncludedInFocusChain
             Includes hyperlinks in the keyboard focus chain. Enabled by default.
@@ -169,7 +171,38 @@
     \value  ShowScrollBars
             Shows scroll bars.
             Enabled by default. (Added in Qt 5.10)
+    \value  PlaybackRequiresUserGesture
+            Inhibits playback of media content until the user interacts with
+            the page. This is similar to how Chrome on Android behaves, while
+            the default behavior when it is disabled is similar to Chrome on desktops.
+            (Added in Qt 5.11)
+    \value  JavascriptCanPaste
+            Enables JavaScript \c{execCommand("paste")}. This also requires
+            enabling JavascriptCanAccessClipboard.
+            Disabled by default. (Added in Qt 5.11)
+    \value  WebRTCPublicInterfacesOnly
+            Limits WebRTC to public IP addresses only. When disabled WebRTC may also use
+            local network IP addresses, but remote hosts can also see your local network
+            IP address.
+            Disabled by default. (Added in Qt 5.11)
+*/
 
+/*!
+    \enum QWebEngineSettings::UnknownUrlSchemePolicy
+    \since Qt 5.11
+
+    This enum describes how navigation requests to URLs with unknown schemes are handled.
+
+    \value DisallowUnknownUrlSchemes
+           Disallows all navigation requests to URLs with unknown schemes.
+    \value AllowUnknownUrlSchemesFromUserInteraction
+           Allows navigation requests to URLs with unknown schemes that are issued from
+           user-interaction (like a mouse-click), whereas other navigation requests (for example
+           from JavaScript) are suppressed.
+    \value AllowAllUnknownUrlSchemes
+           Allows all navigation requests to URLs with unknown schemes.
+
+    \sa unknownUrlSchemePolicy setUnknownUrlSchemePolicy resetUnknownUrlSchemePolicy
 */
 
 /*!
@@ -222,6 +255,29 @@
     \fn void QWebEngineSettings::resetFontFamily(FontFamily which)
     Resets the actual font family specified by \a which to the one specified
     in the profile that the page belongs to.
+*/
+
+/*!
+    \fn QWebEngineSettings::UnknownUrlSchemePolicy QWebEngineSettings::unknownUrlSchemePolicy() const
+    \since Qt 5.11
+    Returns the currently selected policy for handling navigation requests to URLs with
+    unknown schemes. Default is \l{QWebEngineSettings::AllowUnknownUrlSchemesFromUserInteraction}.
+    \sa setUnknownUrlSchemePolicy resetUnknownUrlSchemePolicy
+*/
+
+/*!
+    \fn void QWebEngineSettings::setUnknownUrlSchemePolicy(QWebEngineSettings::UnknownUrlSchemePolicy policy)
+    \since Qt 5.11
+    Sets the policy for handling navigation requests to URLs with unknown schemes to \a policy.
+    Default is \l{QWebEngineSettings::AllowUnknownUrlSchemesFromUserInteraction}.
+    \sa unknownUrlSchemePolicy resetUnknownUrlSchemePolicy
+*/
+
+/*!
+    \fn void QWebEngineSettings::resetUnknownUrlSchemePolicy()
+    \since Qt 5.11
+    Removes the policy for handling navigation requests to URLs with unknown schemes.
+    \sa unknownUrlSchemePolicy setUnknownUrlSchemePolicy
 */
 
 /*!

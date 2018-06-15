@@ -3,7 +3,7 @@ DESTDIR = $$OUT_PWD/$$getConfigDir()
 
 TEMPLATE = lib
 
-CONFIG += staticlib c++11
+CONFIG += staticlib c++14
 QT += network core-private
 QT_PRIVATE += webenginecoreheaders-private
 
@@ -39,6 +39,8 @@ HEADERS = \
     qwebenginecookiestore.h \
     qwebenginecookiestore_p.h \
     qwebenginehttprequest.h \
+    qwebenginequotarequest.h \
+    qwebengineregisterprotocolhandlerrequest.h \
     qwebengineurlrequestinterceptor.h \
     qwebengineurlrequestinfo.h \
     qwebengineurlrequestinfo_p.h \
@@ -50,6 +52,8 @@ SOURCES = \
     qwebenginebrowsercontext.cpp \
     qwebenginecookiestore.cpp \
     qwebenginehttprequest.cpp \
+    qwebenginequotarequest.cpp \
+    qwebengineregisterprotocolhandlerrequest.cpp \
     qwebengineurlrequestinfo.cpp \
     qwebengineurlrequestjob.cpp \
     qwebengineurlschemehandler.cpp

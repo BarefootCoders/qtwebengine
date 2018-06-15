@@ -49,9 +49,11 @@
 #include <QStringList>
 #include <QUrl>
 
+QT_FORWARD_DECLARE_CLASS(CertificateErrorController)
 QT_FORWARD_DECLARE_CLASS(QKeyEvent)
 QT_FORWARD_DECLARE_CLASS(QVariant)
-QT_FORWARD_DECLARE_CLASS(CertificateErrorController)
+QT_FORWARD_DECLARE_CLASS(QWebEngineQuotaRequest)
+QT_FORWARD_DECLARE_CLASS(QWebEngineRegisterProtocolHandlerRequest)
 
 namespace content {
 struct DropData;
@@ -94,6 +96,7 @@ public:
         , isSpellCheckerEnabled(false)
         , mediaType(0)
         , mediaFlags(0)
+        , editFlags(0)
     {
     }
     bool hasImageContent;
@@ -101,6 +104,7 @@ public:
     bool isSpellCheckerEnabled;
     uint mediaType;
     uint mediaFlags;
+    uint editFlags;
     QPoint pos;
     QUrl linkUrl;
     QUrl unfilteredLinkUrl;
@@ -152,6 +156,20 @@ public:
         MediaControls = 0x80,
         MediaCanPrint = 0x100,
         MediaCanRotate = 0x200,
+    };
+
+    // Must match blink::WebContextMenuData::EditFlags:
+    enum EditFlags {
+        CanDoNone = 0x0,
+        CanUndo = 0x1,
+        CanRedo = 0x2,
+        CanCut = 0x4,
+        CanCopy = 0x8,
+        CanPaste = 0x10,
+        CanDelete = 0x20,
+        CanSelectAll = 0x40,
+        CanTranslate = 0x80,
+        CanEditRichly = 0x100,
     };
 
     WebEngineContextMenuData():d(new WebEngineContextMenuSharedData) {
@@ -227,6 +245,14 @@ public:
 
     MediaFlags mediaFlags() const {
         return MediaFlags(d->mediaFlags);
+    }
+
+    void setEditFlags(EditFlags flags) {
+        d->editFlags = flags;
+    }
+
+    EditFlags editFlags() const {
+        return EditFlags(d->editFlags);
     }
 
     void setSuggestedFileName(const QString &filename) {
@@ -369,6 +395,7 @@ public:
 
     virtual RenderWidgetHostViewQtDelegate* CreateRenderWidgetHostViewQtDelegate(RenderWidgetHostViewQtDelegateClient *client) = 0;
     virtual RenderWidgetHostViewQtDelegate* CreateRenderWidgetHostViewQtDelegateForPopup(RenderWidgetHostViewQtDelegateClient *client) = 0;
+    virtual void initializationFinished() = 0;
     virtual void titleChanged(const QString&) = 0;
     virtual void urlChanged(const QUrl&) = 0;
     virtual void iconChanged(const QUrl&) = 0;
@@ -411,13 +438,12 @@ public:
     virtual void runGeolocationPermissionRequest(const QUrl &securityOrigin) = 0;
     virtual void runMediaAccessPermissionRequest(const QUrl &securityOrigin, MediaRequestFlags requestFlags) = 0;
     virtual void runMouseLockPermissionRequest(const QUrl &securityOrigin) = 0;
+    virtual void runQuotaRequest(QWebEngineQuotaRequest) = 0;
+    virtual void runRegisterProtocolHandlerRequest(QWebEngineRegisterProtocolHandlerRequest) = 0;
     virtual WebEngineSettings *webEngineSettings() const = 0;
-    virtual void showValidationMessage(const QRect &anchor, const QString &mainText, const QString &subText) = 0;
-    virtual void hideValidationMessage() = 0;
-    virtual void moveValidationMessage(const QRect &anchor) = 0;
     RenderProcessTerminationStatus renderProcessExitStatus(int);
     virtual void renderProcessTerminated(RenderProcessTerminationStatus terminationStatus, int exitCode) = 0;
-    virtual void requestGeometryChange(const QRect &geometry) = 0;
+    virtual void requestGeometryChange(const QRect &geometry, const QRect &frameGeometry) = 0;
     virtual void allowCertificateError(const QSharedPointer<CertificateErrorController> &errorController) = 0;
     virtual void updateScrollPosition(const QPointF &position) = 0;
     virtual void updateContentsSize(const QSizeF &size) = 0;

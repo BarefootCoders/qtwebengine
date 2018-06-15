@@ -42,12 +42,12 @@
 #include "browser_context_adapter.h"
 #include "browsing_data_remover_delegate_qt.h"
 #include "download_manager_delegate_qt.h"
+#include "net/ssl_host_state_delegate_qt.h"
+#include "net/url_request_context_getter_qt.h"
 #include "permission_manager_qt.h"
 #include "qtwebenginecoreglobal_p.h"
 #include "resource_context_qt.h"
-#include "ssl_host_state_delegate_qt.h"
 #include "type_conversion.h"
-#include "url_request_context_getter_qt.h"
 #include "web_engine_library_info.h"
 
 #include "base/time/time.h"
@@ -72,22 +72,22 @@
 namespace QtWebEngineCore {
 
 BrowserContextQt::BrowserContextQt(BrowserContextAdapter *adapter)
-    : m_adapter(adapter),
-      m_prefStore(new InMemoryPrefStore())
+    : m_adapter(adapter)
 {
     PrefServiceFactory factory;
-    factory.set_user_prefs(m_prefStore);
-    scoped_refptr<PrefRegistrySimple> registry(new PrefRegistrySimple());
+    factory.set_user_prefs(new InMemoryPrefStore);
+    PrefRegistrySimple *registry = new PrefRegistrySimple();
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
     // Initial spellcheck settings
     registry->RegisterStringPref(prefs::kAcceptLanguages, std::string());
     registry->RegisterListPref(spellcheck::prefs::kSpellCheckDictionaries, base::MakeUnique<base::ListValue>());
+    registry->RegisterListPref(spellcheck::prefs::kSpellCheckForcedDictionaries, base::MakeUnique<base::ListValue>());
     registry->RegisterStringPref(spellcheck::prefs::kSpellCheckDictionary, std::string());
-    registry->RegisterBooleanPref(spellcheck::prefs::kEnableSpellcheck, false);
+    registry->RegisterBooleanPref(spellcheck::prefs::kSpellCheckEnable, false);
     registry->RegisterBooleanPref(spellcheck::prefs::kSpellCheckUseSpellingService, false);
 #endif //ENABLE_SPELLCHECK
-    m_prefService = factory.Create(std::move(registry.get()));
+    m_prefService = factory.Create(registry);
     user_prefs::UserPrefs::Set(this, m_prefService.get());
 }
 
@@ -110,11 +110,6 @@ const PrefService* BrowserContextQt::GetPrefs() const
 base::FilePath BrowserContextQt::GetPath() const
 {
     return toFilePath(m_adapter->dataPath());
-}
-
-base::FilePath BrowserContextQt::GetCachePath() const
-{
-    return toFilePath(m_adapter->cachePath());
 }
 
 bool BrowserContextQt::IsOffTheRecord() const
@@ -174,6 +169,11 @@ content::SSLHostStateDelegate* BrowserContextQt::GetSSLHostStateDelegate()
 }
 
 std::unique_ptr<content::ZoomLevelDelegate> BrowserContextQt::CreateZoomLevelDelegate(const base::FilePath&)
+{
+    return nullptr;
+}
+
+content::BackgroundFetchDelegate* BrowserContextQt::GetBackgroundFetchDelegate()
 {
     return nullptr;
 }
@@ -243,12 +243,12 @@ QStringList BrowserContextQt::spellCheckLanguages() const
 
 void BrowserContextQt::setSpellCheckEnabled(bool enabled)
 {
-    m_prefService->SetBoolean(spellcheck::prefs::kEnableSpellcheck, enabled);
+    m_prefService->SetBoolean(spellcheck::prefs::kSpellCheckEnable, enabled);
 }
 
 bool BrowserContextQt::isSpellCheckEnabled() const
 {
-    return m_prefService->GetBoolean(spellcheck::prefs::kEnableSpellcheck);
+    return m_prefService->GetBoolean(spellcheck::prefs::kSpellCheckEnable);
 }
 #endif //ENABLE_SPELLCHECK
 } // namespace QtWebEngineCore

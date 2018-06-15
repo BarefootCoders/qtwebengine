@@ -41,18 +41,19 @@
 
 #include "common/qt_messages.h"
 #include "printing/features/features.h"
+#include "renderer/content_settings_observer_qt.h"
 
 #include "base/strings/string_split.h"
-#include "base/strings/utf_string_conversions.h"
 #if BUILDFLAG(ENABLE_SPELLCHECK)
 #include "components/spellcheck/renderer/spellcheck.h"
 #include "components/spellcheck/renderer/spellcheck_provider.h"
 #endif
 #include "components/cdm/renderer/widevine_key_system_properties.h"
+#include "components/error_page/common/error.h"
 #include "components/error_page/common/error_page_params.h"
 #include "components/error_page/common/localized_error.h"
 #if BUILDFLAG(ENABLE_BASIC_PRINTING)
-#include "components/printing/renderer/print_web_view_helper.h"
+#include "components/printing/renderer/print_render_frame_helper.h"
 #endif // if BUILDFLAG(ENABLE_BASIC_PRINTING)
 #include "components/visitedlink/renderer/visitedlink_slave.h"
 #include "components/web_cache/renderer/web_cache_impl.h"
@@ -63,7 +64,6 @@
 #include "content/public/renderer/render_thread.h"
 #include "content/public/renderer/render_view.h"
 #include "net/base/net_errors.h"
-#include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebURLError.h"
 #include "third_party/WebKit/public/platform/WebURLRequest.h"
 #include "ui/base/resource/resource_bundle.h"
@@ -79,6 +79,7 @@
 #include "renderer/user_resource_controller.h"
 #include "renderer/web_channel_ipc_transport.h"
 #include "services/service_manager/public/cpp/binder_registry.h"
+#include "services/service_manager/public/cpp/connector.h"
 
 #include "components/grit/components_resources.h"
 
@@ -114,7 +115,7 @@ void ContentRendererClientQt::RenderThreadStarted()
     renderThread->AddObserver(UserResourceController::instance());
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
-    m_spellCheck.reset(new SpellCheck());
+    m_spellCheck.reset(new SpellCheck(this));
     renderThread->AddObserver(m_spellCheck.data());
 #endif
 }
@@ -123,20 +124,23 @@ void ContentRendererClientQt::RenderViewCreated(content::RenderView* render_view
 {
     // RenderViewObservers destroy themselves with their RenderView.
     new RenderViewObserverQt(render_view, m_webCacheImpl.data());
-    new WebChannelIPCTransport(render_view);
     UserResourceController::instance()->renderViewCreated(render_view);
 }
 
 void ContentRendererClientQt::RenderFrameCreated(content::RenderFrame* render_frame)
 {
     new QtWebEngineCore::RenderFrameObserverQt(render_frame);
+    if (render_frame->IsMainFrame())
+        new WebChannelIPCTransport(render_frame);
     UserResourceController::instance()->renderFrameCreated(render_frame);
 
+    new QtWebEngineCore::ContentSettingsObserverQt(render_frame);
+
 #if BUILDFLAG(ENABLE_SPELLCHECK)
-    new SpellCheckProvider(render_frame, m_spellCheck.data());
+    new SpellCheckProvider(render_frame, m_spellCheck.data(), this);
 #endif
 #if BUILDFLAG(ENABLE_BASIC_PRINTING)
-    new printing::PrintWebViewHelper(
+    new printing::PrintRenderFrameHelper(
                 render_frame,
                 base::WrapUnique(new PrintWebViewHelperDelegateQt()));
 #endif // BUILDFLAG(ENABLE_BASIC_PRINTING)
@@ -150,8 +154,6 @@ void ContentRendererClientQt::RunScriptsAtDocumentStart(content::RenderFrame* re
     if (!render_frame_observer || render_frame_observer->isFrameDetached())
         return; // The frame is invisible to scripts.
 
-    if (WebChannelIPCTransport *transport = WebChannelIPCTransport::Get(render_frame->GetRenderView()))
-        transport->RunScriptsAtDocumentStart(render_frame);
     UserResourceController::instance()->RunScriptsAtDocumentStart(render_frame);
 }
 
@@ -166,14 +168,13 @@ void ContentRendererClientQt::RunScriptsAtDocumentEnd(content::RenderFrame* rend
     UserResourceController::instance()->RunScriptsAtDocumentEnd(render_frame);
 }
 
-bool ContentRendererClientQt::HasErrorPage(int httpStatusCode, std::string *errorDomain)
+bool ContentRendererClientQt::HasErrorPage(int httpStatusCode)
 {
     // Use an internal error page, if we have one for the status code.
-    if (!error_page::LocalizedError::HasStrings(error_page::LocalizedError::kHttpErrorDomain, httpStatusCode)) {
+    if (!error_page::LocalizedError::HasStrings(error_page::Error::kHttpErrorDomain, httpStatusCode)) {
         return false;
     }
 
-    *errorDomain = error_page::LocalizedError::kHttpErrorDomain;
     return true;
 }
 
@@ -183,7 +184,25 @@ bool ContentRendererClientQt::ShouldSuppressErrorPage(content::RenderFrame *fram
 }
 
 // To tap into the chromium localized strings. Ripped from the chrome layer (highly simplified).
-void ContentRendererClientQt::GetNavigationErrorStrings(content::RenderFrame* renderFrame, const blink::WebURLRequest &failedRequest, const blink::WebURLError &error, std::string *errorHtml, base::string16 *errorDescription)
+void ContentRendererClientQt::PrepareErrorPage(content::RenderFrame* renderFrame, const blink::WebURLRequest &failedRequest,
+                                               const blink::WebURLError &web_error,
+                                               std::string *errorHtml, base::string16 *errorDescription)
+{
+    GetNavigationErrorStringsInternal(renderFrame, failedRequest,
+                                      error_page::Error::NetError(web_error.url(), web_error.reason(), web_error.has_copy_in_cache()),
+                                      errorHtml, errorDescription);
+}
+
+void ContentRendererClientQt::PrepareErrorPageForHttpStatusError(content::RenderFrame* renderFrame, const blink::WebURLRequest& failedRequest,
+                                                                 const GURL& unreachable_url, int http_status,
+                                                                 std::string* errorHtml, base::string16* errorDescription)
+{
+    GetNavigationErrorStringsInternal(renderFrame, failedRequest,
+                                      error_page::Error::HttpError(unreachable_url, http_status),
+                                      errorHtml, errorDescription);
+}
+
+void ContentRendererClientQt::GetNavigationErrorStringsInternal(content::RenderFrame */*renderFrame*/, const blink::WebURLRequest &failedRequest, const error_page::Error &error, std::string *errorHtml, base::string16 *errorDescription)
 {
     const bool isPost = QByteArray::fromStdString(failedRequest.HttpMethod().Utf8()) == QByteArrayLiteral("POST");
 
@@ -196,11 +215,11 @@ void ContentRendererClientQt::GetNavigationErrorStrings(content::RenderFrame* re
         // TODO(elproxy): We could potentially get better diagnostics here by first calling
         // NetErrorHelper::GetErrorStringsForDnsProbe, but that one is harder to untangle.
 
-        error_page::LocalizedError::GetStrings(error.reason, error.domain.Utf8(), error.unreachable_url, isPost
-                                  , error.stale_copy_in_cache && !isPost, false, false, locale
-                                  , std::unique_ptr<error_page::ErrorPageParams>(), &errorStrings);
+        error_page::LocalizedError::GetStrings(
+            error.reason(), error.domain(), error.url(), isPost,
+            error.stale_copy_in_cache(), false, false,
+            locale, std::unique_ptr<error_page::ErrorPageParams>(), &errorStrings);
         resourceId = IDR_NET_ERROR_HTML;
-
 
         const base::StringPiece template_html(ui::ResourceBundle::GetSharedInstance().GetRawDataResource(resourceId));
         if (template_html.empty())
@@ -210,7 +229,7 @@ void ContentRendererClientQt::GetNavigationErrorStrings(content::RenderFrame* re
     }
 
     if (errorDescription)
-        *errorDescription = error_page::LocalizedError::GetErrorDetails(error.domain.Utf8(), error.reason, isPost);
+        *errorDescription = error_page::LocalizedError::GetErrorDetails(error.domain(), error.reason(), isPost);
 }
 
 unsigned long long ContentRendererClientQt::VisitedLinkHash(const char *canonicalUrl, size_t length)
@@ -223,27 +242,34 @@ bool ContentRendererClientQt::IsLinkVisited(unsigned long long linkHash)
     return m_visitedLinkSlave->IsVisited(linkHash);
 }
 
+void ContentRendererClientQt::GetInterface(const std::string &interface_name, mojo::ScopedMessagePipeHandle interface_pipe)
+{
+    content::RenderThread::Get()->GetConnector()->BindInterface(service_manager::Identity("qtwebengine"),
+                                                                interface_name,
+                                                                std::move(interface_pipe));
+}
+
 // The following is based on chrome/renderer/media/chrome_key_systems.cc:
 // Copyright 2013 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE.Chromium file.
 
-#if BUILDFLAG(ENABLE_PEPPER_CDMS)
+#if BUILDFLAG(ENABLE_LIBRARY_CDMS)
 static const char kExternalClearKeyPepperType[] = "application/x-ppapi-clearkey-cdm";
 
 static bool IsPepperCdmAvailable(const std::string& pepper_type,
-                                 std::vector<base::string16>* additional_param_names,
-                                 std::vector<base::string16>* additional_param_values)
+                                 std::vector<content::WebPluginMimeType::Param>* additional_params)
 {
-    bool is_available = false;
+    base::Optional<std::vector<content::WebPluginMimeType::Param>> opt_additional_params;
     content::RenderThread::Get()->Send(
         new QtWebEngineHostMsg_IsInternalPluginAvailableForMimeType(
             pepper_type,
-            &is_available,
-            additional_param_names,
-            additional_param_values));
+            &opt_additional_params));
 
-    return is_available;
+    if (opt_additional_params)
+        *additional_params = *opt_additional_params;
+
+    return opt_additional_params.has_value();
 }
 
 // KeySystemProperties implementation for external Clear Key systems.
@@ -335,11 +361,8 @@ static void AddExternalClearKey(std::vector<std::unique_ptr<media::KeySystemProp
     static const char kExternalClearKeyCrashKeySystem[] =
         "org.chromium.externalclearkey.crash";
 
-    std::vector<base::string16> additional_param_names;
-    std::vector<base::string16> additional_param_values;
-    if (!IsPepperCdmAvailable(kExternalClearKeyPepperType,
-                              &additional_param_names,
-                              &additional_param_values))
+    std::vector<content::WebPluginMimeType::Param> additional_params;
+    if (!IsPepperCdmAvailable(kExternalClearKeyPepperType, &additional_params))
         return;
 
     concrete_key_systems->emplace_back(
@@ -375,11 +398,8 @@ static void AddPepperBasedWidevine(std::vector<std::unique_ptr<media::KeySystemP
 //        return;
 //#endif  // defined(WIDEVINE_CDM_MIN_GLIBC_VERSION)
 
-    std::vector<base::string16> additional_param_names;
-    std::vector<base::string16> additional_param_values;
-    if (!IsPepperCdmAvailable(kWidevineCdmPluginMimeType,
-                              &additional_param_names,
-                              &additional_param_values)) {
+    std::vector<content::WebPluginMimeType::Param> additional_params;
+    if (!IsPepperCdmAvailable(kWidevineCdmPluginMimeType, &additional_params)) {
         DVLOG(1) << "Widevine CDM is not currently available.";
         return;
     }
@@ -410,7 +430,7 @@ static void AddPepperBasedWidevine(std::vector<std::unique_ptr<media::KeySystemP
 
 void ContentRendererClientQt::AddSupportedKeySystems(std::vector<std::unique_ptr<media::KeySystemProperties>> *key_systems)
 {
-#if BUILDFLAG(ENABLE_PEPPER_CDMS)
+#if BUILDFLAG(ENABLE_LIBRARY_CDMS)
     AddExternalClearKey(key_systems);
 
 #if defined(WIDEVINE_CDM_AVAILABLE)

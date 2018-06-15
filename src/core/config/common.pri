@@ -17,7 +17,8 @@ gn_args += \
 
 !win32: gn_args += \
     use_jumbo_build=true \
-    jumbo_file_merge_limit=50
+    jumbo_file_merge_limit=8 \
+    jumbo_build_excluded="[\"browser\",\"renderer\"]"
 
 qtConfig(webengine-printing-and-pdf) {
     gn_args += enable_basic_printing=true enable_print_preview=true
@@ -54,6 +55,7 @@ precompile_header {
 }
 
 CONFIG(release, debug|release) {
+    gn_args += is_debug=false
     force_debug_info {
         # Level 1 is not enough to generate all Chromium debug symbols on Windows
         msvc: gn_args += symbol_level=2
@@ -64,6 +66,7 @@ CONFIG(release, debug|release) {
 }
 
 CONFIG(debug, debug|release) {
+    gn_args += is_debug=true
     gn_args += use_debug_fission=false
 }
 
@@ -91,3 +94,4 @@ qtConfig(webengine-v8-snapshot) {
     gn_args += v8_use_snapshot=false
 }
 
+!msvc: gn_args += enable_iterator_debugging=false

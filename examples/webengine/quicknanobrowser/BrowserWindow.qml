@@ -57,7 +57,7 @@ import QtQuick.Controls.Styles 1.0
 import QtQuick.Dialogs 1.2
 import QtQuick.Layouts 1.0
 import QtQuick.Window 2.1
-import QtWebEngine 1.3
+import QtWebEngine 1.7
 
 ApplicationWindow {
     id: browserWindow
@@ -87,6 +87,8 @@ ApplicationWindow {
         property alias fullScreenSupportEnabled: fullScreenSupportEnabled.checked
         property alias autoLoadIconsForPage: autoLoadIconsForPage.checked
         property alias touchIconsEnabled: touchIconsEnabled.checked
+        property alias webRTCPublicInterfacesOnly : webRTCPublicInterfacesOnly.checked
+        property alias devToolsEnabled: devToolsEnabled.checked
     }
 
     Action {
@@ -204,8 +206,12 @@ ApplicationWindow {
                                 enabled: model.offset
                             }
 
-                            onObjectAdded: historyMenu.insertItem(index, object)
-                            onObjectRemoved: historyMenu.removeItem(object)
+                            onObjectAdded: function(index, object) {
+                                historyMenu.insertItem(index, object)
+                            }
+                            onObjectRemoved: function(index, object) {
+                                historyMenu.removeItem(object)
+                            }
                         }
                     }
                 }
@@ -289,14 +295,18 @@ ApplicationWindow {
                             text: "Off The Record"
                             checkable: true
                             checked: currentWebView.profile.offTheRecord
-                            onToggled: currentWebView.profile = checked ? otrProfile : defaultProfile;
+                            onToggled: function(checked) {
+                                currentWebView.profile = checked ? otrProfile : defaultProfile;
+                            }
                         }
                         MenuItem {
                             id: httpDiskCacheEnabled
                             text: "HTTP Disk Cache"
                             checkable: !currentWebView.profile.offTheRecord
                             checked: (currentWebView.profile.httpCacheType === WebEngineProfile.DiskHttpCache)
-                            onToggled: currentWebView.profile.httpCacheType = checked ? WebEngineProfile.DiskHttpCache : WebEngineProfile.MemoryHttpCache
+                            onToggled: function(checked) {
+                                currentWebView.profile.httpCacheType = checked ? WebEngineProfile.DiskHttpCache : WebEngineProfile.MemoryHttpCache;
+                            }
                         }
                         MenuItem {
                             id: autoLoadIconsForPage
@@ -310,6 +320,18 @@ ApplicationWindow {
                             checkable: true
                             checked: WebEngine.settings.touchIconsEnabled
                             enabled: autoLoadIconsForPage.checked
+                        }
+                        MenuItem {
+                            id: webRTCPublicInterfacesOnly
+                            text: "WebRTC Public Interfaces Only"
+                            checkable: true
+                            checked: WebEngine.settings.webRTCPublicInterfacesOnly
+                        }
+                        MenuItem {
+                            id: devToolsEnabled
+                            text: "Open DevTools"
+                            checkable: true
+                            checked: false
                         }
                     }
                 }
@@ -354,8 +376,8 @@ ApplicationWindow {
                 id: webEngineView
                 focus: true
 
-                onLinkHovered: {
-                    if (hoveredUrl == "")
+                onLinkHovered: function(hoveredUrl) {
+                    if (hoveredUrl === "")
                         resetStatusText.start();
                     else {
                         resetStatusText.stop();
@@ -384,23 +406,24 @@ ApplicationWindow {
                 settings.fullScreenSupportEnabled: appSettings.fullScreenSupportEnabled
                 settings.autoLoadIconsForPage: appSettings.autoLoadIconsForPage
                 settings.touchIconsEnabled: appSettings.touchIconsEnabled
+                settings.webRTCPublicInterfacesOnly: appSettings.webRTCPublicInterfacesOnly
 
-                onCertificateError: {
+                onCertificateError: function(error) {
                     error.defer();
                     sslDialog.enqueue(error);
                 }
 
-                onNewViewRequested: {
+                onNewViewRequested: function(request) {
                     if (!request.userInitiated)
                         print("Warning: Blocked a popup window.");
-                    else if (request.destination == WebEngineView.NewViewInTab) {
+                    else if (request.destination === WebEngineView.NewViewInTab) {
                         var tab = tabs.createEmptyTab(currentWebView.profile);
                         tabs.currentIndex = tabs.count - 1;
                         request.openIn(tab.item);
-                    } else if (request.destination == WebEngineView.NewViewInBackgroundTab) {
+                    } else if (request.destination === WebEngineView.NewViewInBackgroundTab) {
                         var backgroundTab = tabs.createEmptyTab(currentWebView.profile);
                         request.openIn(backgroundTab.item);
-                    } else if (request.destination == WebEngineView.NewViewInDialog) {
+                    } else if (request.destination === WebEngineView.NewViewInDialog) {
                         var dialog = applicationRoot.createDialog(currentWebView.profile);
                         request.openIn(dialog.currentWebView);
                     } else {
@@ -409,7 +432,7 @@ ApplicationWindow {
                     }
                 }
 
-                onFullScreenRequested: {
+                onFullScreenRequested: function(request) {
                     if (request.toggleOn) {
                         webEngineView.state = "FullScreen";
                         browserWindow.previousVisibility = browserWindow.visibility;
@@ -423,7 +446,20 @@ ApplicationWindow {
                     request.accept();
                 }
 
-                onRenderProcessTerminated: {
+                onQuotaRequested: function(request) {
+                    if (request.requestedSize <= 5 * 1024 * 1024)
+                        request.accept();
+                    else
+                        request.reject();
+                }
+
+                onRegisterProtocolHandlerRequested: function(request) {
+                    console.log("accepting registerProtocolHandler request for "
+                                + request.scheme + " from " + request.origin);
+                    request.accept();
+                }
+
+                onRenderProcessTerminated: function(terminationStatus, exitCode) {
                     var status = "";
                     switch (terminationStatus) {
                     case WebEngineView.NormalTerminationStatus:
@@ -460,6 +496,15 @@ ApplicationWindow {
                 }
             }
         }
+    }
+    WebEngineView {
+        id: devToolsView
+        visible: devToolsEnabled.checked
+        height: 400
+        inspectedView: visible && tabs.currentIndex < tabs.count ? tabs.getTab(tabs.currentIndex).item : null
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
     }
     MessageDialog {
         id: sslDialog

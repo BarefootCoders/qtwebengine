@@ -69,7 +69,6 @@ public:
 
     // BrowserContext implementation:
     base::FilePath GetPath() const override;
-    base::FilePath GetCachePath() const;
     bool IsOffTheRecord() const override;
 
     net::URLRequestContextGetter *CreateMediaRequestContext() override;
@@ -90,6 +89,7 @@ public:
             content::URLRequestInterceptorScopedVector request_interceptors) override;
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(const base::FilePath& partition_path) override;
     content::PermissionManager *GetPermissionManager() override;
+    content::BackgroundFetchDelegate* GetBackgroundFetchDelegate() override;
     content::BackgroundSyncController* GetBackgroundSyncController() override;
     content::BrowsingDataRemoverDelegate *GetBrowsingDataRemoverDelegate() override;
 
@@ -116,7 +116,6 @@ private:
     std::unique_ptr<PermissionManagerQt> permissionManager;
     std::unique_ptr<SSLHostStateDelegateQt> sslHostStateDelegate;
     BrowserContextAdapter *m_adapter;
-    scoped_refptr<InMemoryPrefStore> m_prefStore;
     std::unique_ptr<PrefService> m_prefService;
     friend class BrowserContextAdapter;
 

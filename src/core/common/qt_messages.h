@@ -4,10 +4,12 @@
 
 // Multiply-included file, no traditional include guard.
 
+#include "base/optional.h"
+#include "media/media_features.h"
 #include "content/public/common/common_param_traits.h"
+#include "content/public/common/webplugininfo.h"
 #include "ipc/ipc_message_macros.h"
 #include "ppapi/features/features.h"
-
 #include "user_script_data.h"
 
 IPC_STRUCT_TRAITS_BEGIN(UserScriptData)
@@ -38,8 +40,7 @@ IPC_MESSAGE_ROUTED1(RenderViewObserverQt_FetchDocumentInnerText,
 IPC_MESSAGE_ROUTED1(RenderViewObserverQt_SetBackgroundColor,
                     uint32_t /* color */)
 
-IPC_MESSAGE_ROUTED1(WebChannelIPCTransport_Install, uint /* worldId */)
-IPC_MESSAGE_ROUTED1(WebChannelIPCTransport_Uninstall, uint /* worldId */)
+IPC_MESSAGE_ROUTED1(WebChannelIPCTransport_SetWorldId, base::Optional<uint> /* worldId */)
 IPC_MESSAGE_ROUTED2(WebChannelIPCTransport_Message, std::vector<char> /*binaryJSON*/, uint /* worldId */)
 
 // User scripts messages
@@ -52,6 +53,12 @@ IPC_MESSAGE_ROUTED0(RenderFrameObserverHelper_ClearScripts)
 IPC_MESSAGE_CONTROL1(UserResourceController_AddScript, UserScriptData /* scriptContents */)
 IPC_MESSAGE_CONTROL1(UserResourceController_RemoveScript, UserScriptData /* scriptContents */)
 IPC_MESSAGE_CONTROL0(UserResourceController_ClearScripts)
+
+// Tells the renderer whether or not a file system access has been allowed.
+IPC_MESSAGE_ROUTED2(QtWebEngineMsg_RequestFileSystemAccessAsyncResponse,
+                    int  /* request_id */,
+                    bool /* allowed */)
+
 
 //-----------------------------------------------------------------------------
 // WebContents messages
@@ -73,16 +80,58 @@ IPC_MESSAGE_ROUTED1(WebChannelIPCTransportHost_SendMessage, std::vector<char> /*
 // Misc messages
 // These are messages sent from the renderer to the browser process.
 
-#if BUILDFLAG(ENABLE_PEPPER_CDMS)
+#if BUILDFLAG(ENABLE_LIBRARY_CDMS)
 // Returns whether any internal plugin supporting |mime_type| is registered and
 // enabled. Does not determine whether the plugin can actually be instantiated
 // (e.g. whether it has all its dependencies).
 // When the returned *|is_available| is true, |additional_param_names| and
 // |additional_param_values| contain the name-value pairs, if any, specified
 // for the *first* non-disabled plugin found that is registered for |mime_type|.
-IPC_SYNC_MESSAGE_CONTROL1_3(QtWebEngineHostMsg_IsInternalPluginAvailableForMimeType,
+IPC_SYNC_MESSAGE_CONTROL1_1(QtWebEngineHostMsg_IsInternalPluginAvailableForMimeType,
                             std::string /* mime_type */,
-                            bool /* is_available */,
-                            std::vector<base::string16> /* additional_param_names */,
-                            std::vector<base::string16> /* additional_param_values */)
+                            base::Optional<std::vector<content::WebPluginMimeType::Param>>)
 #endif
+
+// Sent by the renderer process to check whether access to web databases is
+// granted by content settings.
+IPC_SYNC_MESSAGE_CONTROL5_1(QtWebEngineHostMsg_AllowDatabase,
+                            int /* render_frame_id */,
+                            GURL /* origin_url */,
+                            GURL /* top origin url */,
+                            base::string16 /* database name */,
+                            base::string16 /* database display name */,
+                            bool /* allowed */)
+
+// Sent by the renderer process to check whether access to DOM Storage is
+// granted by content settings.
+IPC_SYNC_MESSAGE_CONTROL4_1(QtWebEngineHostMsg_AllowDOMStorage,
+                            int /* render_frame_id */,
+                            GURL /* origin_url */,
+                            GURL /* top origin url */,
+                            bool /* if true local storage, otherwise session */,
+                            bool /* allowed */)
+
+// Sent by the renderer process to check whether access to FileSystem is
+// granted by content settings.
+IPC_SYNC_MESSAGE_CONTROL3_1(QtWebEngineHostMsg_RequestFileSystemAccessSync,
+                            int /* render_frame_id */,
+                            GURL /* origin_url */,
+                            GURL /* top origin url */,
+                            bool /* allowed */)
+
+// Sent by the renderer process to check whether access to FileSystem is
+// granted by content settings.
+IPC_MESSAGE_CONTROL4(QtWebEngineHostMsg_RequestFileSystemAccessAsync,
+                     int /* render_frame_id */,
+                     int /* request_id */,
+                     GURL /* origin_url */,
+                     GURL /* top origin url */)
+
+// Sent by the renderer process to check whether access to Indexed DB is
+// granted by content settings.
+IPC_SYNC_MESSAGE_CONTROL4_1(QtWebEngineHostMsg_AllowIndexedDB,
+                            int /* render_frame_id */,
+                            GURL /* origin_url */,
+                            GURL /* top origin url */,
+                            base::string16 /* database name */,
+                            bool /* allowed */)

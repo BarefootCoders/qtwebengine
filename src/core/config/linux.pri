@@ -4,13 +4,12 @@ QT_FOR_CONFIG += gui-private webengine-private
 
 gn_args += \
     use_cups=false \
-    use_gconf=false \
     use_gio=false \
     use_gnome_keyring=false \
     use_kerberos=false \
     linux_use_bundled_binutils=false \
-    use_nss_certs=true \
-    use_openssl_certs=false
+    use_udev=true \
+    use_bundled_fontconfig=false
 
 gcc:!clang: greaterThan(QT_GCC_MAJOR_VERSION, 5): gn_args += no_delete_null_pointer_checks=true
 
@@ -21,7 +20,8 @@ clang {
     gn_args += \
         is_clang=true \
         clang_use_chrome_plugins=false \
-        clang_base_path=\"$${clang_prefix}\"
+        clang_base_path=\"$${clang_prefix}\" \
+        use_lld=false
 
     linux-clang-libc++: gn_args += use_libcxx=true
 } else {
@@ -95,7 +95,6 @@ host_build {
     gn_args += host_cpu=\"$$GN_HOST_CPU\"
     # Don't bother trying to use system libraries in this case
     gn_args += use_glib=false
-    gn_args += use_system_libffi=false
 } else {
     gn_args += custom_toolchain=\"$$QTWEBENGINE_OUT_ROOT/src/toolchain:target\"
     gn_args += host_toolchain=\"$$QTWEBENGINE_OUT_ROOT/src/toolchain:host\"
@@ -124,15 +123,19 @@ host_build {
         gn_args += host_pkg_config=\"$$PKG_CONFIG_HOST\"
     }
 
-    qtConfig(webengine-system-zlib): qtConfig(webengine-system-minizip) {
-        gn_args += use_system_zlib=true use_system_minizip=true
+    qtConfig(webengine-system-zlib) {
+        qtConfig(webengine-system-minizip): gn_args += use_system_zlib=true use_system_minizip=true
         qtConfig(webengine-printing-and-pdf): gn_args += pdfium_use_system_zlib=true
     }
+    qtConfig(webengine-system-png) {
+        gn_args += use_system_libpng=true
+        qtConfig(webengine-printing-and-pdf): gn_args += pdfium_use_system_libpng=true
+    }
     qtConfig(webengine-system-png): gn_args += use_system_libpng=true
-    qtConfig(system-jpeg): gn_args += use_system_libjpeg=true
+    qtConfig(webengine-system-jpeg): gn_args += use_system_libjpeg=true
     qtConfig(system-freetype): gn_args += use_system_freetype=true
     qtConfig(webengine-system-harfbuzz): gn_args += use_system_harfbuzz=true
-    qtConfig(webengine-system-glib): gn_args += use_glib=false
+    !qtConfig(webengine-system-glib): gn_args += use_glib=false
     qtConfig(webengine-pulseaudio) {
         gn_args += use_pulseaudio=true
     } else {
@@ -143,8 +146,6 @@ host_build {
     } else {
         gn_args += use_alsa=false
     }
-    packagesExist(libffi): gn_args += use_system_libffi=true
-    else: gn_args += use_system_libffi=false
     !packagesExist(libpci): gn_args += use_libpci=false
     !packagesExist(xscrnsaver): gn_args += use_xscrnsaver=false
 

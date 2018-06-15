@@ -52,7 +52,7 @@
 #include "web_event_factory.h"
 
 #include "base/command_line.h"
-#include "cc/output/direct_renderer.h"
+#include "components/viz/service/display/direct_renderer.h"
 #include "components/viz/service/frame_sinks/frame_sink_manager_impl.h"
 #include "content/browser/accessibility/browser_accessibility_state_impl.h"
 #include "content/browser/browser_main_loop.h"
@@ -67,7 +67,6 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/WebKit/public/platform/WebColor.h"
 #include "third_party/WebKit/public/platform/WebCursorInfo.h"
-#include "third_party/WebKit/public/web/WebCompositionUnderline.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/events/blink/blink_event_util.h"
 #include "ui/events/event.h"
@@ -317,7 +316,7 @@ bool isAccessibilityEnabled() {
     return accessibility_enabled;
 }
 
-RenderWidgetHostViewQt::RenderWidgetHostViewQt(content::RenderWidgetHost* widget)
+RenderWidgetHostViewQt::RenderWidgetHostViewQt(content::RenderWidgetHost *widget)
     : m_host(content::RenderWidgetHostImpl::From(widget))
     , m_gestureProvider(QtGestureProviderConfig(), this)
     , m_sendMotionActionDown(false)
@@ -342,8 +341,8 @@ RenderWidgetHostViewQt::RenderWidgetHostViewQt(content::RenderWidgetHost* widget
     , m_wheelAckPending(false)
 {
     auto* task_runner = base::ThreadTaskRunnerHandle::Get().get();
-    m_beginFrameSource.reset(new cc::DelayBasedBeginFrameSource(
-                                 base::MakeUnique<cc::DelayBasedTimeSource>(task_runner)));
+    m_beginFrameSource.reset(new viz::DelayBasedBeginFrameSource(
+            base::MakeUnique<viz::DelayBasedTimeSource>(task_runner), 0));
 
     m_host->SetView(this);
 #ifndef QT_NO_ACCESSIBILITY
@@ -353,6 +352,7 @@ RenderWidgetHostViewQt::RenderWidgetHostViewQt(content::RenderWidgetHost* widget
             content::BrowserAccessibilityStateImpl::GetInstance()->EnableAccessibility();
     }
 #endif // QT_NO_ACCESSIBILITY
+
     if (GetTextInputManager())
         GetTextInputManager()->AddObserver(this);
 
@@ -408,7 +408,7 @@ void RenderWidgetHostViewQt::InitAsFullscreen(content::RenderWidgetHostView*)
 {
 }
 
-content::RenderWidgetHost* RenderWidgetHostViewQt::GetRenderWidgetHost() const
+content::RenderWidgetHostImpl* RenderWidgetHostViewQt::GetRenderWidgetHostImpl() const
 {
     return m_host;
 }
@@ -487,7 +487,7 @@ bool RenderWidgetHostViewQt::HasFocus() const
 
 bool RenderWidgetHostViewQt::IsSurfaceAvailableForCopy() const
 {
-    return true;
+    return false;
 }
 
 void RenderWidgetHostViewQt::Show()
@@ -704,8 +704,11 @@ void RenderWidgetHostViewQt::ImeCompositionRangeChanged(const gfx::Range&, const
 void RenderWidgetHostViewQt::RenderProcessGone(base::TerminationStatus terminationStatus,
                                                int exitCode)
 {
-    m_adapterClient->renderProcessTerminated(
-                m_adapterClient->renderProcessExitStatus(terminationStatus), exitCode);
+    if (m_adapterClient) {
+        m_adapterClient->renderProcessTerminated(
+                    m_adapterClient->renderProcessExitStatus(terminationStatus),
+                    exitCode);
+    }
     Destroy();
 }
 
@@ -716,7 +719,8 @@ void RenderWidgetHostViewQt::Destroy()
 
 void RenderWidgetHostViewQt::SetTooltipText(const base::string16 &tooltip_text)
 {
-    m_adapterClient->setToolTip(toQt(tooltip_text));
+    if (m_adapterClient)
+        m_adapterClient->setToolTip(toQt(tooltip_text));
 }
 
 bool RenderWidgetHostViewQt::HasAcceleratedSurface(const gfx::Size&)
@@ -724,7 +728,7 @@ bool RenderWidgetHostViewQt::HasAcceleratedSurface(const gfx::Size&)
     return false;
 }
 
-void RenderWidgetHostViewQt::DidCreateNewRendererCompositorFrameSink(cc::mojom::CompositorFrameSinkClient *frameSink)
+void RenderWidgetHostViewQt::DidCreateNewRendererCompositorFrameSink(viz::mojom::CompositorFrameSinkClient *frameSink)
 {
     // Accumulated resources belong to the old RendererCompositorFrameSink and
     // should not be returned.
@@ -732,7 +736,7 @@ void RenderWidgetHostViewQt::DidCreateNewRendererCompositorFrameSink(cc::mojom::
     m_rendererCompositorFrameSink = frameSink;
 }
 
-void RenderWidgetHostViewQt::SubmitCompositorFrame(const viz::LocalSurfaceId &local_surface_id, cc::CompositorFrame frame)
+void RenderWidgetHostViewQt::SubmitCompositorFrame(const viz::LocalSurfaceId &local_surface_id, viz::CompositorFrame frame, viz::mojom::HitTestRegionListPtr)
 {
     bool scrollOffsetChanged = (m_lastScrollOffset != frame.metadata.root_scroll_offset);
     bool contentsSizeChanged = (m_lastContentsSize != frame.metadata.root_layer_size);
@@ -749,6 +753,11 @@ void RenderWidgetHostViewQt::SubmitCompositorFrame(const viz::LocalSurfaceId &lo
     m_chromiumCompositorData->previousFrameData = std::move(m_chromiumCompositorData->frameData);
     m_chromiumCompositorData->frameDevicePixelRatio = frame.metadata.device_scale_factor;
     m_chromiumCompositorData->frameData = std::move(frame);
+
+    // Force to process swap messages
+    uint32_t frame_token = frame.metadata.frame_token;
+    if (frame_token)
+        OnFrameTokenChangedForView(frame_token);
 
     // Support experimental.viewport.devicePixelRatio, see GetScreenInfo implementation below.
     float dpiScale = this->dpiScale();
@@ -808,6 +817,8 @@ void RenderWidgetHostViewQt::OnUpdateTextInputStateCalled(content::TextInputMana
     if (!state)
         return;
 
+    // At this point it is unknown whether the text input state has been updated due to a text selection.
+    // Keep the cursor position updated for cursor movements too.
     if (GetSelectedText().empty())
         m_cursorPosition = state->selection_start;
 
@@ -891,6 +902,11 @@ void RenderWidgetHostViewQt::selectionChanged()
     }
 
     if (GetSelectedText().empty()) {
+        // RenderWidgetHostViewQt::OnUpdateTextInputStateCalled() does not update the cursor position
+        // if the selection is cleared because TextInputState changes before the TextSelection change.
+        Q_ASSERT(text_input_manager_->GetTextInputState());
+        m_cursorPosition = text_input_manager_->GetTextInputState()->selection_start;
+
         m_anchorPositionWithinSelection = m_cursorPosition;
         m_cursorPositionWithinSelection = m_cursorPosition;
 
@@ -960,6 +976,7 @@ QSGNode *RenderWidgetHostViewQt::updatePaintNode(QSGNode *oldNode)
 void RenderWidgetHostViewQt::notifyResize()
 {
     m_host->WasResized();
+    m_host->SendScreenRects();
 }
 
 void RenderWidgetHostViewQt::notifyShown()
@@ -995,8 +1012,11 @@ bool RenderWidgetHostViewQt::forwardEvent(QEvent *event)
 
         auto acceptKeyOutOfInputField = [](QKeyEvent *keyEvent) -> bool {
 #ifdef Q_OS_MACOS
-            // Try triggering a registered shortcut
-            if (QGuiApplicationPrivate::instance()->shortcutMap.tryShortcut(keyEvent))
+            // Check if a shortcut is registered for this key sequence.
+            QKeySequence sequence = QKeySequence (
+                         (keyEvent->modifiers() | keyEvent->key()) &
+                         ~(Qt::KeypadModifier | Qt::GroupSwitchModifier));
+            if (QGuiApplicationPrivate::instance()->shortcutMap.hasShortcutForKeySequence(sequence))
                 return false;
 
             // The following shortcuts are handled out of input field too but
@@ -1048,6 +1068,12 @@ bool RenderWidgetHostViewQt::forwardEvent(QEvent *event)
     case QEvent::TouchEnd:
     case QEvent::TouchCancel:
         handleTouchEvent(static_cast<QTouchEvent*>(event));
+        break;
+    case QEvent::TabletPress:
+        Focus(); // Fall through.
+    case QEvent::TabletRelease:
+    case QEvent::TabletMove:
+        handleTabletEvent(static_cast<QTabletEvent*>(event));
         break;
 #ifndef QT_NO_GESTURES
     case QEvent::NativeGesture:
@@ -1131,7 +1157,7 @@ void RenderWidgetHostViewQt::ProcessAckedTouchEvent(const content::TouchEventWit
 void RenderWidgetHostViewQt::sendDelegatedFrameAck()
 {
     m_beginFrameSource->DidFinishFrame(this);
-    std::vector<cc::ReturnedResource> resources;
+    std::vector<viz::ReturnedResource> resources;
     m_resourcesToRelease.swap(resources);
     if (m_rendererCompositorFrameSink)
         m_rendererCompositorFrameSink->DidReceiveCompositorFrameAck(resources);
@@ -1185,50 +1211,7 @@ void RenderWidgetHostViewQt::handleMouseEvent(QMouseEvent* event)
     // transformation done by Chromium.
     if (event->source() == Qt::MouseEventSynthesizedBySystem)
         return;
-
-    blink::WebMouseEvent webEvent = WebEventFactory::toWebMouseEvent(event, dpiScale());
-    if ((webEvent.GetType() == blink::WebInputEvent::kMouseDown || webEvent.GetType() == blink::WebInputEvent::kMouseUp)
-            && webEvent.button == blink::WebMouseEvent::Button::kNoButton) {
-        // Blink can only handle the 3 main mouse-buttons and may assert when processing mouse-down for no button.
-        return;
-    }
-
-
-    if (event->type() == QMouseEvent::MouseButtonPress) {
-        if (event->button() != m_clickHelper.lastPressButton
-            || (event->timestamp() - m_clickHelper.lastPressTimestamp > static_cast<ulong>(qGuiApp->styleHints()->mouseDoubleClickInterval()))
-            || (event->pos() - m_clickHelper.lastPressPosition).manhattanLength() > qGuiApp->styleHints()->startDragDistance()
-            || m_clickHelper.clickCounter >= 3)
-            m_clickHelper.clickCounter = 0;
-
-        m_clickHelper.lastPressTimestamp = event->timestamp();
-        webEvent.click_count = ++m_clickHelper.clickCounter;
-        m_clickHelper.lastPressButton = event->button();
-        m_clickHelper.lastPressPosition = QPointF(event->pos()).toPoint();
-    }
-
-    webEvent.movement_x = event->globalX() - m_previousMousePosition.x();
-    webEvent.movement_y = event->globalY() - m_previousMousePosition.y();
-
-    if (IsMouseLocked())
-        QCursor::setPos(m_previousMousePosition);
-    else
-        m_previousMousePosition = event->globalPos();
-
-    if (m_imeInProgress && event->type() == QMouseEvent::MouseButtonPress) {
-        m_imeInProgress = false;
-        // Tell input method to commit the pre-edit string entered so far, and finish the
-        // composition operation.
-#ifdef Q_OS_WIN
-        // Yes the function name is counter-intuitive, but commit isn't actually implemented
-        // by the Windows QPA, and reset does exactly what is necessary in this case.
-        qApp->inputMethod()->reset();
-#else
-        qApp->inputMethod()->commit();
-#endif
-    }
-
-    m_host->ForwardMouseEvent(webEvent);
+    handlePointerEvent<QMouseEvent>(event);
 }
 
 void RenderWidgetHostViewQt::handleKeyEvent(QKeyEvent *ev)
@@ -1247,7 +1230,7 @@ void RenderWidgetHostViewQt::handleKeyEvent(QKeyEvent *ev)
             if (ev->type() == QEvent::KeyRelease) {
                 m_receivedEmptyImeText = false;
                 m_host->ImeSetComposition(toString16(ev->text()),
-                                          std::vector<ui::CompositionUnderline>(),
+                                          std::vector<ui::ImeTextSpan>(),
                                           gfx::Range::InvalidRange(),
                                           gfx::Range::InvalidRange().start(),
                                           gfx::Range::InvalidRange().end());
@@ -1298,7 +1281,7 @@ void RenderWidgetHostViewQt::handleInputMethodEvent(QInputMethodEvent *ev)
     gfx::Range selectionRange = gfx::Range::InvalidRange();
 
     const QList<QInputMethodEvent::Attribute> &attributes = ev->attributes();
-    std::vector<ui::CompositionUnderline> underlines;
+    std::vector<ui::ImeTextSpan> underlines;
     bool hasSelection = false;
 
     for (const auto &attribute : attributes) {
@@ -1323,7 +1306,7 @@ void RenderWidgetHostViewQt::handleInputMethodEvent(QInputMethodEvent *ev)
             if (format.underlineStyle() != QTextCharFormat::NoUnderline)
                 underlineColor = format.underlineColor();
 
-            underlines.push_back(ui::CompositionUnderline(start, end, toSk(underlineColor), /*thick*/ false, SK_ColorTRANSPARENT));
+            underlines.push_back(ui::ImeTextSpan(ui::ImeTextSpan::Type::kComposition, start, end, toSk(underlineColor), /*thick*/ false, SK_ColorTRANSPARENT));
             break;
         }
         case QInputMethodEvent::Cursor:
@@ -1611,6 +1594,60 @@ void RenderWidgetHostViewQt::handleTouchEvent(QTouchEvent *ev)
     }
 }
 
+void RenderWidgetHostViewQt::handleTabletEvent(QTabletEvent *event)
+{
+    handlePointerEvent<QTabletEvent>(event);
+}
+
+template<class T>
+void RenderWidgetHostViewQt::handlePointerEvent(T *event)
+{
+    // Currently WebMouseEvent is a subclass of WebPointerProperties, so basically
+    // tablet events are mouse events with extra properties.
+    blink::WebMouseEvent webEvent = WebEventFactory::toWebMouseEvent(event, dpiScale());
+    if ((webEvent.GetType() == blink::WebInputEvent::kMouseDown || webEvent.GetType() == blink::WebInputEvent::kMouseUp)
+            && webEvent.button == blink::WebMouseEvent::Button::kNoButton) {
+        // Blink can only handle the 3 main mouse-buttons and may assert when processing mouse-down for no button.
+        return;
+    }
+
+    if (webEvent.GetType() == blink::WebInputEvent::kMouseDown) {
+        if (event->button() != m_clickHelper.lastPressButton
+            || (event->timestamp() - m_clickHelper.lastPressTimestamp > static_cast<ulong>(qGuiApp->styleHints()->mouseDoubleClickInterval()))
+            || (event->pos() - m_clickHelper.lastPressPosition).manhattanLength() > qGuiApp->styleHints()->startDragDistance()
+            || m_clickHelper.clickCounter >= 3)
+            m_clickHelper.clickCounter = 0;
+
+        m_clickHelper.lastPressTimestamp = event->timestamp();
+        webEvent.click_count = ++m_clickHelper.clickCounter;
+        m_clickHelper.lastPressButton = event->button();
+        m_clickHelper.lastPressPosition = QPointF(event->pos()).toPoint();
+    }
+
+    webEvent.movement_x = event->globalX() - m_previousMousePosition.x();
+    webEvent.movement_y = event->globalY() - m_previousMousePosition.y();
+
+    if (IsMouseLocked())
+        QCursor::setPos(m_previousMousePosition);
+    else
+        m_previousMousePosition = event->globalPos();
+
+    if (m_imeInProgress && webEvent.GetType() == blink::WebInputEvent::kMouseDown) {
+        m_imeInProgress = false;
+        // Tell input method to commit the pre-edit string entered so far, and finish the
+        // composition operation.
+#ifdef Q_OS_WIN
+        // Yes the function name is counter-intuitive, but commit isn't actually implemented
+        // by the Windows QPA, and reset does exactly what is necessary in this case.
+        qApp->inputMethod()->reset();
+#else
+        qApp->inputMethod()->commit();
+#endif
+    }
+
+    m_host->ForwardMouseEvent(webEvent);
+}
+
 void RenderWidgetHostViewQt::handleHoverEvent(QHoverEvent *ev)
 {
     m_host->ForwardMouseEvent(WebEventFactory::toWebMouseEvent(ev, dpiScale()));
@@ -1655,7 +1692,7 @@ void RenderWidgetHostViewQt::updateNeedsBeginFramesInternal()
     m_addedFrameObserver = m_needsBeginFrames;
 }
 
-bool RenderWidgetHostViewQt::OnBeginFrameDerivedImpl(const cc::BeginFrameArgs& args)
+bool RenderWidgetHostViewQt::OnBeginFrameDerivedImpl(const viz::BeginFrameArgs& args)
 {
     m_beginFrameSource->OnUpdateVSyncParameters(args.frame_time, args.interval);
     if (m_rendererCompositorFrameSink)
@@ -1693,5 +1730,13 @@ ui::TextInputType RenderWidgetHostViewQt::getTextInputType() const
     return ui::TEXT_INPUT_TYPE_NONE;
 }
 
+void RenderWidgetHostViewQt::SetWantsAnimateOnlyBeginFrames()
+{
+}
+
+viz::SurfaceId RenderWidgetHostViewQt::GetCurrentSurfaceId() const
+{
+    return viz::SurfaceId();
+}
 
 } // namespace QtWebEngineCore

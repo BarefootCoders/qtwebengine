@@ -46,8 +46,13 @@
 #include "base/command_line.h"
 #include "chrome/common/chrome_switches.h"
 #include "content/browser/gpu/gpu_process_host.h"
+#include "content/public/browser/render_view_host.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
+#include "content/public/common/renderer_preferences.h"
 #include "content/public/common/web_preferences.h"
+#include "media/base/media_switches.h"
+#include "content/public/common/webrtc_ip_handling_policy.h"
 #include "ui/events/event_switches.h"
 
 #include <QFont>
@@ -110,6 +115,7 @@ WebEngineSettings::WebEngineSettings(WebEngineSettings *_parentSettings)
     : m_adapter(0)
     , m_batchTimer(new BatchTimer(this))
     , parentSettings(_parentSettings)
+    , m_unknownUrlSchemePolicy(WebEngineSettings::InheritedUnknownUrlSchemePolicy)
 {
     if (parentSettings)
         parentSettings->childSettings.insert(this);
@@ -125,7 +131,7 @@ WebEngineSettings::~WebEngineSettings()
     }
 }
 
-void WebEngineSettings::overrideWebPreferences(content::WebPreferences *prefs)
+void WebEngineSettings::overrideWebPreferences(content::WebContents *webContents, content::WebPreferences *prefs)
 {
     // Apply our settings on top of those.
     applySettingsToWebPreferences(prefs);
@@ -134,6 +140,12 @@ void WebEngineSettings::overrideWebPreferences(content::WebPreferences *prefs)
     // before we get here (e.g. number_of_cpu_cores).
     if (webPreferences.isNull())
         webPreferences.reset(new content::WebPreferences(*prefs));
+
+    if (webContents
+            && webContents->GetRenderViewHost()
+            && applySettingsToRendererPreferences(webContents->GetMutableRendererPrefs())) {
+        webContents->GetRenderViewHost()->SyncRendererPrefs();
+    }
 }
 
 void WebEngineSettings::setAttribute(WebEngineSettings::Attribute attr, bool on)
@@ -149,6 +161,17 @@ bool WebEngineSettings::testAttribute(WebEngineSettings::Attribute attr) const
         return m_attributes.value(attr, s_defaultAttributes.value(attr));
     }
     return m_attributes.value(attr, parentSettings->testAttribute(attr));
+}
+
+bool WebEngineSettings::isAttributeExplicitlySet(Attribute attr) const
+{
+    if (m_attributes.contains(attr))
+        return true;
+
+    if (parentSettings)
+        return parentSettings->isAttributeExplicitlySet(attr);
+
+    return false;
 }
 
 void WebEngineSettings::resetAttribute(WebEngineSettings::Attribute attr)
@@ -212,6 +235,22 @@ QString WebEngineSettings::defaultTextEncoding() const
     return m_defaultEncoding.isEmpty()? parentSettings->defaultTextEncoding() : m_defaultEncoding;
 }
 
+void WebEngineSettings::setUnknownUrlSchemePolicy(WebEngineSettings::UnknownUrlSchemePolicy policy)
+{
+    m_unknownUrlSchemePolicy = policy;
+}
+
+WebEngineSettings::UnknownUrlSchemePolicy WebEngineSettings::unknownUrlSchemePolicy() const
+{
+    // value InheritedUnknownUrlSchemePolicy means it is taken from parent, if possible. If there
+    // is no parent, then AllowUnknownUrlSchemesFromUserInteraction (the default behavior) is used.
+    if (m_unknownUrlSchemePolicy != InheritedUnknownUrlSchemePolicy)
+        return m_unknownUrlSchemePolicy;
+    if (parentSettings)
+        return parentSettings->unknownUrlSchemePolicy();
+    return AllowUnknownUrlSchemesFromUserInteraction;
+}
+
 void WebEngineSettings::initDefaults()
 {
     if (s_defaultAttributes.isEmpty()) {
@@ -237,10 +276,10 @@ void WebEngineSettings::initDefaults()
         QtWebEngineCore::WebEngineContext::current();
         base::CommandLine* commandLine = base::CommandLine::ForCurrentProcess();
         bool smoothScrolling = commandLine->HasSwitch(switches::kEnableSmoothScrolling);
-        bool webGL = content::GpuProcessHost::gpu_enabled() &&
+        bool webGL =
                 !commandLine->HasSwitch(switches::kDisable3DAPIs) &&
-                !commandLine->HasSwitch(switches::kDisableExperimentalWebGL);
-        bool accelerated2dCanvas = content::GpuProcessHost::gpu_enabled() &&
+                !commandLine->HasSwitch(switches::kDisableWebGL);
+        bool accelerated2dCanvas =
                 !commandLine->HasSwitch(switches::kDisableAccelerated2dCanvas);
         bool allowRunningInsecureContent = commandLine->HasSwitch(switches::kAllowRunningInsecureContent);
         s_defaultAttributes.insert(ScrollAnimatorEnabled, smoothScrolling);
@@ -253,6 +292,12 @@ void WebEngineSettings::initDefaults()
         s_defaultAttributes.insert(AllowRunningInsecureContent, allowRunningInsecureContent);
         s_defaultAttributes.insert(AllowGeolocationOnInsecureOrigins, false);
         s_defaultAttributes.insert(AllowWindowActivationFromJavaScript, false);
+        bool playbackRequiresUserGesture = false;
+        if (commandLine->HasSwitch(switches::kAutoplayPolicy))
+            playbackRequiresUserGesture = (commandLine->GetSwitchValueASCII(switches::kAutoplayPolicy) != switches::autoplay::kNoUserGestureRequiredPolicy);
+        s_defaultAttributes.insert(PlaybackRequiresUserGesture, playbackRequiresUserGesture);
+        s_defaultAttributes.insert(WebRTCPublicInterfacesOnly, false);
+        s_defaultAttributes.insert(JavascriptCanPaste, false);
     }
 
     if (s_defaultFontFamilies.isEmpty()) {
@@ -284,6 +329,7 @@ void WebEngineSettings::initDefaults()
     }
 
     m_defaultEncoding = QStringLiteral("ISO-8859-1");
+    m_unknownUrlSchemePolicy = InheritedUnknownUrlSchemePolicy;
 }
 
 void WebEngineSettings::scheduleApply()
@@ -298,9 +344,11 @@ void WebEngineSettings::doApply()
         return;
     // Override with our settings when applicable
     applySettingsToWebPreferences(webPreferences.data());
-
     Q_ASSERT(m_adapter);
     m_adapter->updateWebPreferences(*webPreferences.data());
+
+    if (applySettingsToRendererPreferences(m_adapter->webContents()->GetMutableRendererPrefs()))
+        m_adapter->webContents()->GetRenderViewHost()->SyncRendererPrefs();
 }
 
 void WebEngineSettings::applySettingsToWebPreferences(content::WebPreferences *prefs)
@@ -331,11 +379,17 @@ void WebEngineSettings::applySettingsToWebPreferences(content::WebPreferences *p
     prefs->plugins_enabled = testAttribute(PluginsEnabled);
     prefs->fullscreen_supported = testAttribute(FullScreenSupportEnabled);
     prefs->accelerated_2d_canvas_enabled = testAttribute(Accelerated2dCanvasEnabled);
-    prefs->experimental_webgl_enabled = testAttribute(WebGLEnabled);
+    prefs->webgl1_enabled = prefs->webgl2_enabled = testAttribute(WebGLEnabled);
     prefs->should_print_backgrounds = testAttribute(PrintElementBackgrounds);
     prefs->allow_running_insecure_content = testAttribute(AllowRunningInsecureContent);
     prefs->allow_geolocation_on_insecure_origins = testAttribute(AllowGeolocationOnInsecureOrigins);
     prefs->hide_scrollbars = !testAttribute(ShowScrollBars);
+    if (isAttributeExplicitlySet(PlaybackRequiresUserGesture)) {
+        prefs->autoplay_policy = testAttribute(PlaybackRequiresUserGesture)
+                               ? content::AutoplayPolicy::kUserGestureRequired
+                               : content::AutoplayPolicy::kNoUserGestureRequired;
+    }
+    prefs->dom_paste_enabled = testAttribute(JavascriptCanPaste);
 
     // Fonts settings.
     prefs->standard_font_family_map[content::kCommonScript] = toString16(fontFamily(StandardFont));
@@ -350,6 +404,23 @@ void WebEngineSettings::applySettingsToWebPreferences(content::WebPreferences *p
     prefs->minimum_font_size = fontSize(MinimumFontSize);
     prefs->minimum_logical_font_size = fontSize(MinimumLogicalFontSize);
     prefs->default_encoding = defaultTextEncoding().toStdString();
+}
+
+bool WebEngineSettings::applySettingsToRendererPreferences(content::RendererPreferences *prefs)
+{
+    bool changed = false;
+#if BUILDFLAG(ENABLE_WEBRTC)
+    if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kForceWebRtcIPHandlingPolicy)) {
+        std::string webrtc_ip_handling_policy = testAttribute(WebEngineSettings::WebRTCPublicInterfacesOnly)
+                                              ? content::kWebRTCIPHandlingDefaultPublicInterfaceOnly
+                                              : content::kWebRTCIPHandlingDefault;
+        if (prefs->webrtc_ip_handling_policy != webrtc_ip_handling_policy) {
+            prefs->webrtc_ip_handling_policy = webrtc_ip_handling_policy;
+            changed = true;
+        }
+    }
+#endif
+    return changed;
 }
 
 void WebEngineSettings::scheduleApplyRecursively()

@@ -61,11 +61,14 @@ ResourceDispatcherHostLoginDelegateQt::ResourceDispatcherHostLoginDelegateQt(net
     , m_request(request)
 {
     Q_ASSERT(content::BrowserThread::CurrentlyOn(content::BrowserThread::IO));
-    content::ResourceRequestInfo::GetRenderFrameForRequest(request, &m_renderProcessId,  &m_renderFrameId);
+    const content::ResourceRequestInfo *requestInfo = content::ResourceRequestInfo::ForRequest(request);
+    Q_ASSERT(requestInfo);
 
     content::BrowserThread::PostTask(
-        content::BrowserThread::UI, FROM_HERE,
-        base::Bind(&ResourceDispatcherHostLoginDelegateQt::triggerDialog, this));
+            content::BrowserThread::UI, FROM_HERE,
+            base::Bind(&ResourceDispatcherHostLoginDelegateQt::triggerDialog,
+                       this,
+                       requestInfo->GetWebContentsGetterForRequest()));
 }
 
 ResourceDispatcherHostLoginDelegateQt::~ResourceDispatcherHostLoginDelegateQt()
@@ -100,14 +103,13 @@ bool ResourceDispatcherHostLoginDelegateQt::isProxy() const
     return m_authInfo->is_proxy;
 }
 
-void ResourceDispatcherHostLoginDelegateQt::triggerDialog()
+void ResourceDispatcherHostLoginDelegateQt::triggerDialog(const content::ResourceRequestInfo::WebContentsGetter &webContentsGetter)
 {
     Q_ASSERT(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
-    content::RenderFrameHost *renderFrameHost = content::RenderFrameHost::FromID(m_renderProcessId, m_renderFrameId);
-    if (!renderFrameHost)
+    content::WebContentsImpl *webContents =
+            static_cast<content::WebContentsImpl *>(webContentsGetter.Run());
+    if (!webContents)
         return;
-    content::RenderViewHost *renderViewHost = renderFrameHost->GetRenderViewHost();
-    content::WebContentsImpl *webContents = static_cast<content::WebContentsImpl *>(content::WebContents::FromRenderViewHost(renderViewHost));
     WebContentsAdapterClient *client = WebContentsViewQt::from(webContents->GetView())->client();
 
     AuthenticationDialogControllerPrivate *dialogControllerData = new AuthenticationDialogControllerPrivate(this);
@@ -138,7 +140,7 @@ void ResourceDispatcherHostLoginDelegateQt::destroy()
 
 static void LaunchURL(const GURL& url, int render_process_id,
                       const content::ResourceRequestInfo::WebContentsGetter& web_contents_getter,
-                      ui::PageTransition page_transition, bool is_main_frame)
+                      ui::PageTransition page_transition, bool is_main_frame, bool has_user_gesture)
 {
     Q_UNUSED(render_process_id);
     Q_ASSERT(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
@@ -146,16 +148,13 @@ static void LaunchURL(const GURL& url, int render_process_id,
     if (!webContents)
         return;
     WebContentsDelegateQt *contentsDelegate = static_cast<WebContentsDelegateQt*>(webContents->GetDelegate());
-    contentsDelegate->launchExternalURL(toQt(url), page_transition, is_main_frame);
+    contentsDelegate->launchExternalURL(toQt(url), page_transition, is_main_frame, has_user_gesture);
 }
 
 
 bool ResourceDispatcherHostDelegateQt::HandleExternalProtocol(const GURL& url, content::ResourceRequestInfo* info)
 {
     Q_ASSERT(content::BrowserThread::CurrentlyOn(content::BrowserThread::IO));
-    // We don't want to launch external applications unless it is based on a user action
-    if (!info->HasUserGesture())
-        return false;
 
     content::BrowserThread::PostTask(
         content::BrowserThread::UI,
@@ -164,7 +163,8 @@ bool ResourceDispatcherHostDelegateQt::HandleExternalProtocol(const GURL& url, c
                    info->GetChildID(),
                    info->GetWebContentsGetterForRequest(),
                    info->GetPageTransition(),
-                   info->IsMainFrame())
+                   info->IsMainFrame(),
+                   info->HasUserGesture())
     );
     return true;
 }

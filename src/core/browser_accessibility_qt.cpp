@@ -214,11 +214,10 @@ QAccessible::Role BrowserAccessibilityQt::role() const
         return QAccessible::Section;
     case ui::AX_ROLE_BLOCKQUOTE:
         return QAccessible::Section;
-    case ui::AX_ROLE_BUSY_INDICATOR:
-        return QAccessible::NoRole; // This is unused and planned to be removed.
     case ui::AX_ROLE_BUTTON:
         return QAccessible::Button;
     case ui::AX_ROLE_BUTTON_DROP_DOWN:
+        // TODO: Remove this during the next Chromium update: https://chromium-review.googlesource.com/842475
         return QAccessible::ButtonDropDown;
     case ui::AX_ROLE_CANVAS:
         return QAccessible::Canvas;
@@ -238,7 +237,9 @@ QAccessible::Role BrowserAccessibilityQt::role() const
         return QAccessible::Column;
     case ui::AX_ROLE_COLUMN_HEADER:
         return QAccessible::ColumnHeader;
-    case ui::AX_ROLE_COMBO_BOX:
+    case ui::AX_ROLE_COMBO_BOX_GROUPING:
+    case ui::AX_ROLE_COMBO_BOX_MENU_BUTTON:
+    case ui::AX_ROLE_TEXT_FIELD_WITH_COMBO_BOX:
         return QAccessible::ComboBox;
     case ui::AX_ROLE_COMPLEMENTARY:
         return QAccessible::ComplementaryContent;
@@ -297,8 +298,6 @@ QAccessible::Role BrowserAccessibilityQt::role() const
         return QAccessible::Graphic;
     case ui::AX_ROLE_IMAGE_MAP:
         return QAccessible::Graphic;
-    case ui::AX_ROLE_IMAGE_MAP_LINK:
-        return QAccessible::Link;
     case ui::AX_ROLE_INLINE_TEXT_BOX:
         return QAccessible::EditableText;
     case ui::AX_ROLE_INPUT_TIME:
@@ -355,8 +354,6 @@ QAccessible::Role BrowserAccessibilityQt::role() const
         return QAccessible::Section;
     case ui::AX_ROLE_NOTE:
         return QAccessible::Note;
-    case ui::AX_ROLE_OUTLINE:
-        return QAccessible::Tree;
     case ui::AX_ROLE_PANE:
         return QAccessible::Pane;
     case ui::AX_ROLE_PARAGRAPH:
@@ -381,14 +378,8 @@ QAccessible::Role BrowserAccessibilityQt::role() const
         return QAccessible::RowHeader;
     case ui::AX_ROLE_RUBY:
         return QAccessible::StaticText;
-    case ui::AX_ROLE_RULER:
-        return QAccessible::NoRole; // FIXME
-    case ui::AX_ROLE_SCROLL_AREA:
-        return QAccessible::Client; // FIXME
     case ui::AX_ROLE_SCROLL_BAR:
         return QAccessible::ScrollBar;
-    case ui::AX_ROLE_SEAMLESS_WEB_AREA:
-        return QAccessible::NoRole; // FIXME
     case ui::AX_ROLE_SEARCH:
         return QAccessible::Section;
     case ui::AX_ROLE_SEARCH_BOX:
@@ -417,8 +408,6 @@ QAccessible::Role BrowserAccessibilityQt::role() const
         return QAccessible::Section;
     case ui::AX_ROLE_TAB:
         return QAccessible::PageTab;
-    case ui::AX_ROLE_TAB_GROUP:  // blink doesn't use (uses ROLE_TAB_LIST)
-        return QAccessible::NoRole; // FIXME
     case ui::AX_ROLE_TAB_LIST:
         return QAccessible::PageTabList;
     case ui::AX_ROLE_TAB_PANEL:
@@ -456,8 +445,6 @@ QAccessible::State BrowserAccessibilityQt::state() const
 {
     QAccessible::State state = QAccessible::State();
     int32_t s = GetState();
-    if (s & (1 << ui::AX_STATE_BUSY))
-        state.busy = true;
     if (s & (1 << ui::AX_STATE_COLLAPSED))
         state.collapsed = true;
     if (s & (1 << ui::AX_STATE_DEFAULT))
@@ -478,8 +465,6 @@ QAccessible::State BrowserAccessibilityQt::state() const
         state.linked = true;
     if (s & (1 << ui::AX_STATE_MULTISELECTABLE))
         state.multiSelectable = true;
-    if (s & (1 << ui::AX_STATE_OFFSCREEN))
-        state.offscreen = true;
     if (s & (1 << ui::AX_STATE_PROTECTED))
     {} // FIXME
     if (s & (1 << ui::AX_STATE_REQUIRED))
@@ -495,8 +480,12 @@ QAccessible::State BrowserAccessibilityQt::state() const
     if (s & (1 << ui::AX_STATE_VISITED))
     {} // FIXME
 
+    if (IsOffscreen())
+        state.offscreen = true;
     if (manager()->GetFocus() == this)
         state.focused = true;
+    if (GetBoolAttribute(ui::AX_ATTR_BUSY))
+        state.busy = true;
     if (HasIntAttribute(ui::AX_ATTR_CHECKED_STATE)) {
         ui::AXCheckedState checkedState = (ui::AXCheckedState)GetIntAttribute(ui::AX_ATTR_CHECKED_STATE);
         switch (checkedState) {

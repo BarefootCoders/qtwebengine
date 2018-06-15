@@ -56,12 +56,14 @@
 #include "webview.h"
 #include <QAuthenticator>
 #include <QMessageBox>
+#include <QStyle>
 
 WebPage::WebPage(QWebEngineProfile *profile, QObject *parent)
     : QWebEnginePage(profile, parent)
 {
     connect(this, &QWebEnginePage::authenticationRequired, this, &WebPage::handleAuthenticationRequired);
     connect(this, &QWebEnginePage::proxyAuthenticationRequired, this, &WebPage::handleProxyAuthenticationRequired);
+    connect(this, &QWebEnginePage::registerProtocolHandlerRequested, this, &WebPage::handleRegisterProtocolHandlerRequested);
 }
 
 bool WebPage::certificateError(const QWebEngineCertificateError &error)
@@ -140,3 +142,19 @@ void WebPage::handleProxyAuthenticationRequired(const QUrl &, QAuthenticator *au
         *auth = QAuthenticator();
     }
 }
+
+//! [registerProtocolHandlerRequested]
+void WebPage::handleRegisterProtocolHandlerRequested(QWebEngineRegisterProtocolHandlerRequest request)
+{
+    auto answer = QMessageBox::question(
+        view()->window(),
+        tr("Permission Request"),
+        tr("Allow %1 to open all %2 links?")
+        .arg(request.origin().host())
+        .arg(request.scheme()));
+    if (answer == QMessageBox::Yes)
+        request.accept();
+    else
+        request.reject();
+}
+//! [registerProtocolHandlerRequested]

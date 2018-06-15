@@ -52,6 +52,7 @@
 #define WEBPAGE_H
 
 #include <QWebEnginePage>
+#include <QWebEngineRegisterProtocolHandlerRequest>
 
 class WebPage : public QWebEnginePage
 {
@@ -66,6 +67,7 @@ protected:
 private slots:
     void handleAuthenticationRequired(const QUrl &requestUrl, QAuthenticator *auth);
     void handleProxyAuthenticationRequired(const QUrl &requestUrl, QAuthenticator *auth, const QString &proxyHost);
+    void handleRegisterProtocolHandlerRequested(QWebEngineRegisterProtocolHandlerRequest request);
 };
 
 #endif // WEBPAGE_H

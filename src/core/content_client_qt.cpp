@@ -51,7 +51,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
-#include "qrc_protocol_handler_qt.h"
+#include "net/qrc_protocol_handler_qt.h"
 #include "type_conversion.h"
 
 #include <QCoreApplication>
@@ -93,6 +93,13 @@ const char kPpapiFlashPath[]    = "ppapi-flash-path";
 const char kPpapiFlashVersion[] = "ppapi-flash-version";
 const char kPpapiWidevinePath[] = "ppapi-widevine-path";
 }
+
+const char kCdmSupportedCodecsParamName[] = "codecs";
+const char kCdmSupportedCodecVp8[] = "vp8";
+const char kCdmSupportedCodecVp9[] = "vp9.0";
+#if BUILDFLAG(USE_PROPRIETARY_CODECS)
+const char kCdmSupportedCodecAvc1[] = "avc1";
+#endif
 
 static const char kWidevineCdmPluginExtension[] = "";
 
@@ -202,7 +209,7 @@ void AddPepperFlashFromCommandLine(std::vector<content::PepperPluginInfo>* plugi
 
 void AddPepperWidevine(std::vector<content::PepperPluginInfo>* plugins)
 {
-#if defined(WIDEVINE_CDM_AVAILABLE) && BUILDFLAG(ENABLE_PEPPER_CDMS) && !defined(WIDEVINE_CDM_IS_COMPONENT)
+#if defined(WIDEVINE_CDM_AVAILABLE) && BUILDFLAG(ENABLE_LIBRARY_CDMS) && !defined(WIDEVINE_CDM_IS_COMPONENT)
     QStringList pluginPaths;
     const base::CommandLine::StringType widevine_argument = base::CommandLine::ForCurrentProcess()->GetSwitchValueNative(switches::kPpapiWidevinePath);
     if (!widevine_argument.empty())
@@ -263,11 +270,9 @@ void AddPepperWidevine(std::vector<content::PepperPluginInfo>* plugins)
 #endif  // defined(USE_PROPRIETARY_CODECS)
             std::string codec_string =
                 base::JoinString(codecs, ",");
-            widevine_cdm_mime_type.additional_param_names.push_back(
-                base::ASCIIToUTF16(kCdmSupportedCodecsParamName));
-            widevine_cdm_mime_type.additional_param_values.push_back(
-                base::ASCIIToUTF16(codec_string));
-
+            widevine_cdm_mime_type.additional_params.emplace_back(
+                        base::ASCIIToUTF16(kCdmSupportedCodecsParamName),
+                        base::ASCIIToUTF16(codec_string));
             widevine_cdm.mime_types.push_back(widevine_cdm_mime_type);
             widevine_cdm.permissions = kWidevineCdmPluginPermissions;
             plugins->push_back(widevine_cdm);
@@ -300,12 +305,12 @@ std::string ContentClientQt::getUserAgent()
 }
 
 base::StringPiece ContentClientQt::GetDataResource(int resource_id, ui::ScaleFactor scale_factor) const {
-    return ResourceBundle::GetSharedInstance().GetRawDataResourceForScale(resource_id, scale_factor);
+    return ui::ResourceBundle::GetSharedInstance().GetRawDataResourceForScale(resource_id, scale_factor);
 }
 
 base::RefCountedMemory *ContentClientQt::GetDataResourceBytes(int resource_id) const
 {
-    return ResourceBundle::GetSharedInstance().LoadDataResourceBytes(resource_id);
+    return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(resource_id);
 }
 
 base::string16 ContentClientQt::GetLocalizedString(int message_id) const

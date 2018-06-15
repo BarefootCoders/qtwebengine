@@ -3,6 +3,7 @@ QT_FOR_CONFIG += webengine
 TEMPLATE = subdirs
 
 SUBDIRS += \
+    origins \
     qwebenginedefaultsurfaceformat \
     qwebenginedownloads \
     qwebenginefaviconmanager \
@@ -10,6 +11,7 @@ SUBDIRS += \
     qwebenginehistory \
     qwebengineinspector \
     qwebengineprofile \
+    qwebengineschemes \
     qwebenginescript \
     qwebenginesettings \
     qwebengineshutdown \
@@ -30,5 +32,6 @@ qtConfig(webengine-spellchecker):!cross_compile {
 # QTBUG-60268
 boot2qt: SUBDIRS -= qwebengineaccessibility qwebenginedefaultsurfaceformat \
                     qwebenginefaviconmanager qwebenginepage qwebenginehistory \
-                    qwebengineprofile qwebenginescript qwebengineview \
-                    qwebenginedownloads
+                    qwebengineprofile qwebengineschemes qwebenginescript \
+                    qwebengineview qwebenginedownloads qwebenginesettings \
+                    origins

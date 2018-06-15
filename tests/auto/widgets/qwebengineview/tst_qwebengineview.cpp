@@ -873,6 +873,7 @@ void tst_QWebEngineView::stopSettingFocusWhenDisabled()
     QFETCH(bool, focusResult);
 
     QWebEngineView webView;
+    webView.settings()->setAttribute(QWebEngineSettings::FocusOnNavigationEnabled, true);
     webView.resize(640, 480);
     webView.show();
     webView.setEnabled(viewEnabled);
@@ -2450,7 +2451,7 @@ void tst_QWebEngineView::mouseLeave()
     containerWidget->setLayout(layout);
     containerWidget->show();
     QVERIFY(QTest::qWaitForWindowExposed(containerWidget.data()));
-    QTest::mouseMove(containerWidget->windowHandle(), QPoint(0, 0));
+    QTest::mouseMove(containerWidget->windowHandle(), QPoint(1, 1));
 
     auto innerText = [view]() -> QString {
         return evaluateJavaScriptSync(view->page(), "document.getElementById('testDiv').innerText").toString();
@@ -2527,9 +2528,13 @@ void tst_QWebEngineView::webUIURLs_data()
     QTest::newRow("predictors") << QUrl("chrome://predictors") << false;
     QTest::newRow("print") << QUrl("chrome://print") << false;
     QTest::newRow("profiler") << QUrl("chrome://profiler") << false;
-    QTest::newRow("quota-internals") << QUrl("chrome://quota-internals") << false;
+    QTest::newRow("quota-internals") << QUrl("chrome://quota-internals") << true;
     QTest::newRow("safe-browsing") << QUrl("chrome://safe-browsing") << false;
+#ifdef Q_OS_LINUX
+    QTest::newRow("sandbox") << QUrl("chrome://sandbox") << true;
+#else
     QTest::newRow("sandbox") << QUrl("chrome://sandbox") << false;
+#endif
     QTest::newRow("serviceworker-internals") << QUrl("chrome://serviceworker-internals") << true;
     QTest::newRow("settings") << QUrl("chrome://settings") << false;
     QTest::newRow("signin-internals") << QUrl("chrome://signin-internals") << false;
@@ -2538,7 +2543,7 @@ void tst_QWebEngineView::webUIURLs_data()
     QTest::newRow("supervised-user-internals") << QUrl("chrome://supervised-user-internals") << false;
     QTest::newRow("sync-internals") << QUrl("chrome://sync-internals") << false;
     QTest::newRow("system") << QUrl("chrome://system") << false;
-    QTest::newRow("taskscheduler-internals") << QUrl("chrome://taskscheduler-internals") << false;
+    QTest::newRow("taskscheduler-internals") << QUrl("chrome://taskscheduler-internals") << true;
     QTest::newRow("terms") << QUrl("chrome://terms") << false;
     QTest::newRow("thumbnails") << QUrl("chrome://thumbnails") << false;
     QTest::newRow("tracing") << QUrl("chrome://tracing") << false;

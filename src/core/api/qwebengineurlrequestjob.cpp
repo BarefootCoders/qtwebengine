@@ -39,8 +39,8 @@
 
 #include "qwebengineurlrequestjob.h"
 
-#include "url_request_custom_job_proxy.h"
-#include "url_request_custom_job_delegate.h"
+#include "net/url_request_custom_job_proxy.h"
+#include "net/url_request_custom_job_delegate.h"
 
 using QtWebEngineCore::URLRequestCustomJobDelegate;
 
@@ -111,6 +111,17 @@ QUrl QWebEngineUrlRequestJob::requestUrl() const
 QByteArray QWebEngineUrlRequestJob::requestMethod() const
 {
     return d_ptr->method();
+}
+
+/*!
+    \since 5.11
+    Returns the origin URL of the content that initiated the request. If the
+    request was not initiated by web content the function will return an
+    empty QUrl.
+*/
+QUrl QWebEngineUrlRequestJob::initiator() const
+{
+    return d_ptr->initiator();
 }
 
 /*!

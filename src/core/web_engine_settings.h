@@ -48,6 +48,8 @@
 #include <QSet>
 
 namespace content {
+struct RendererPreferences;
+class WebContents;
 struct WebPreferences;
 }
 namespace QtWebEngineCore {
@@ -85,7 +87,10 @@ public:
         AllowRunningInsecureContent,
         AllowGeolocationOnInsecureOrigins,
         AllowWindowActivationFromJavaScript,
-        ShowScrollBars
+        ShowScrollBars,
+        PlaybackRequiresUserGesture,
+        WebRTCPublicInterfacesOnly,
+        JavascriptCanPaste,
     };
 
     // Must match the values from the public API in qwebenginesettings.h.
@@ -107,16 +112,25 @@ public:
         DefaultFixedFontSize
     };
 
+    // Must match the values from the public API in qwebenginesettings.h.
+    enum UnknownUrlSchemePolicy {
+        InheritedUnknownUrlSchemePolicy = 0,
+        DisallowUnknownUrlSchemes = 1,
+        AllowUnknownUrlSchemesFromUserInteraction,
+        AllowAllUnknownUrlSchemes
+    };
+
     explicit WebEngineSettings(WebEngineSettings *parentSettings = 0);
     ~WebEngineSettings();
 
     void setParentSettings(WebEngineSettings *parentSettings);
 
-    void overrideWebPreferences(content::WebPreferences *prefs);
+    void overrideWebPreferences(content::WebContents *webContents, content::WebPreferences *prefs);
 
     void setAttribute(Attribute, bool on);
     bool testAttribute(Attribute) const;
     void resetAttribute(Attribute);
+    bool isAttributeExplicitlySet(Attribute) const;
 
     void setFontFamily(FontFamily, const QString &);
     QString fontFamily(FontFamily);
@@ -129,6 +143,9 @@ public:
     void setDefaultTextEncoding(const QString &encoding);
     QString defaultTextEncoding() const;
 
+    void setUnknownUrlSchemePolicy(UnknownUrlSchemePolicy policy);
+    UnknownUrlSchemePolicy unknownUrlSchemePolicy() const;
+
     void initDefaults();
     void scheduleApply();
 
@@ -139,6 +156,7 @@ public:
 private:
     void doApply();
     void applySettingsToWebPreferences(content::WebPreferences *);
+    bool applySettingsToRendererPreferences(content::RendererPreferences *);
     void setWebContentsAdapter(WebContentsAdapter *adapter) { m_adapter = adapter; }
 
     WebContentsAdapter* m_adapter;
@@ -155,6 +173,7 @@ private:
     static QHash<Attribute, bool> s_defaultAttributes;
     static QHash<FontFamily, QString> s_defaultFontFamilies;
     static QHash<FontSize, int> s_defaultFontSizes;
+    UnknownUrlSchemePolicy m_unknownUrlSchemePolicy;
 
     friend class BatchTimer;
     friend class WebContentsAdapter;

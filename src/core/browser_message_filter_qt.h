@@ -40,19 +40,24 @@
 #ifndef BROWSER_MESSAGE_FILTER_QT_H
 #define BROWSER_MESSAGE_FILTER_QT_H
 
+#include "base/callback.h"
 #include "content/public/browser/browser_message_filter.h"
-#include "ppapi/features/features.h"
+#include "content/public/common/webplugininfo.h"
+#include "media/media_features.h"
+
+class GURL;
+class Profile;
 
 namespace QtWebEngineCore {
 
 class BrowserMessageFilterQt : public content::BrowserMessageFilter
 {
 public:
-    BrowserMessageFilterQt(int render_process_id);
+    BrowserMessageFilterQt(int render_process_id, Profile *profile);
 
 private:
     bool OnMessageReceived(const IPC::Message& message) override;
-#if BUILDFLAG(ENABLE_PEPPER_CDMS)
+#if BUILDFLAG(ENABLE_LIBRARY_CDMS)
     // Returns whether any internal plugin supporting |mime_type| is registered
     // and enabled. Does not determine whether the plugin can actually be
     // instantiated (e.g. whether it has all its dependencies).
@@ -62,10 +67,47 @@ private:
     // |mime_type|.
     void OnIsInternalPluginAvailableForMimeType(
         const std::string& mime_type,
-        bool* is_available,
-        std::vector<base::string16>* additional_param_names,
-        std::vector<base::string16>* additional_param_values);
+        base::Optional<std::vector<content::WebPluginMimeType::Param>> *opt_additional_params);
 #endif
+
+    void OnAllowDatabase(int render_frame_id,
+                         const GURL &origin_url,
+                         const GURL &top_origin_url,
+                         const base::string16& name,
+                         const base::string16& display_name,
+                         bool *allowed);
+
+    void OnAllowDOMStorage(int render_frame_id,
+                           const GURL &origin_url,
+                           const GURL &top_origin_url,
+                           bool local,
+                           bool *allowed);
+
+    void OnAllowIndexedDB(int render_frame_id,
+                          const GURL &origin_url,
+                          const GURL &top_origin_url,
+                          const base::string16 &name,
+                          bool *allowed);
+
+    void OnRequestFileSystemAccessSync(int render_frame_id,
+                                       const GURL &origin_url,
+                                       const GURL &top_origin_url,
+                                       IPC::Message *message);
+    void OnRequestFileSystemAccessAsync(int render_frame_id,
+                                        int request_id,
+                                        const GURL &origin_url,
+                                        const GURL &top_origin_url);
+    void OnRequestFileSystemAccessSyncResponse(IPC::Message *reply_msg,
+                                               bool allowed);
+    void OnRequestFileSystemAccessAsyncResponse(int render_frame_id,
+                                                int request_id,
+                                                bool allowed);
+    void OnRequestFileSystemAccess(int render_frame_id,
+                                   const GURL &origin_url,
+                                   const GURL &top_origin_url,
+                                   base::Callback<void(bool)> callback);
+
+    Profile *m_profile;
 };
 
 } // namespace QtWebEngineCore

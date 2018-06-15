@@ -41,12 +41,13 @@
 #define QWEBENGINECOOKIESTORE_H
 
 #include <QtWebEngineCore/qtwebenginecoreglobal.h>
-#include <QtWebEngineCore/qwebenginecallback.h>
 
 #include <QtCore/qobject.h>
 #include <QtCore/qscopedpointer.h>
 #include <QtCore/qurl.h>
 #include <QtNetwork/qnetworkcookie.h>
+
+#include <functional>
 
 namespace QtWebEngineCore {
 class BrowserContextAdapter;
@@ -61,19 +62,16 @@ class QWEBENGINE_EXPORT QWebEngineCookieStore : public QObject {
 
 public:
     struct FilterRequest {
-        bool accepted;
-        const bool thirdParty;
-
-        const QUrl firstPartyUrl;
-        const QUrl origin;
+        QUrl firstPartyUrl;
+        QUrl origin;
+        bool thirdParty;
+        bool _reservedFlag;
+        ushort _reservedType;
     };
     virtual ~QWebEngineCookieStore();
 
-#ifdef Q_QDOC
-    void setCookieFilter(FunctorOrLambda filterCallback);
-#else
-    void setCookieFilter(const QWebEngineCallback<FilterRequest&> &filterCallback);
-#endif
+    void setCookieFilter(const std::function<bool(const FilterRequest &)> &filterCallback);
+    void setCookieFilter(std::function<bool(const FilterRequest &)> &&filterCallback);
     void setCookie(const QNetworkCookie &cookie, const QUrl &origin = QUrl());
     void deleteCookie(const QNetworkCookie &cookie, const QUrl &origin = QUrl());
     void deleteSessionCookies();
@@ -90,6 +88,7 @@ private:
     friend class QtWebEngineCore::CookieMonsterDelegateQt;
     Q_DISABLE_COPY(QWebEngineCookieStore)
     Q_DECLARE_PRIVATE(QWebEngineCookieStore)
+    QScopedPointer<QWebEngineCookieStorePrivate> d_ptr;
 };
 
 QT_END_NAMESPACE

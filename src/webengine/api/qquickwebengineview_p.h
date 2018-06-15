@@ -56,9 +56,11 @@
 #include <QQuickItem>
 #include <QtGui/qcolor.h>
 
+
 QT_BEGIN_NAMESPACE
 
 class QQmlWebChannel;
+class QQuickContextMenuBuilder;
 class QQuickWebEngineAuthenticationDialogRequest;
 class QQuickWebEngineCertificateError;
 class QQuickWebEngineColorDialogRequest;
@@ -74,6 +76,8 @@ class QQuickWebEngineProfile;
 class QQuickWebEngineSettings;
 class QQuickWebEngineFormValidationMessageRequest;
 class QQuickWebEngineViewPrivate;
+class QWebEngineQuotaRequest;
+class QWebEngineRegisterProtocolHandlerRequest;
 
 #ifdef ENABLE_QML_TESTSUPPORT_API
 class QQuickWebEngineTestSupport;
@@ -97,6 +101,8 @@ private:
     const QUrl m_origin;
     const bool m_toggleOn;
 };
+
+#define LATEST_WEBENGINEVIEW_REVISION 7
 
 class Q_WEBENGINE_PRIVATE_EXPORT QQuickWebEngineView : public QQuickItem {
     Q_OBJECT
@@ -122,11 +128,11 @@ class Q_WEBENGINE_PRIVATE_EXPORT QQuickWebEngineView : public QQuickItem {
     Q_PROPERTY(bool recentlyAudible READ recentlyAudible NOTIFY recentlyAudibleChanged FINAL REVISION 3)
     Q_PROPERTY(uint webChannelWorld READ webChannelWorld WRITE setWebChannelWorld NOTIFY webChannelWorldChanged REVISION 3 FINAL)
 
+    Q_PROPERTY(QQuickWebEngineView *inspectedView READ inspectedView WRITE setInspectedView NOTIFY inspectedViewChanged REVISION 7 FINAL)
+    Q_PROPERTY(QQuickWebEngineView *devToolsView READ devToolsView WRITE setDevToolsView NOTIFY devToolsViewChanged REVISION 7 FINAL)
 #ifdef ENABLE_QML_TESTSUPPORT_API
     Q_PROPERTY(QQuickWebEngineTestSupport *testSupport READ testSupport WRITE setTestSupport NOTIFY testSupportChanged FINAL)
 #endif
-
-    Q_FLAGS(FindFlags);
 
 public:
     QQuickWebEngineView(QQuickItem *parent = 0);
@@ -288,6 +294,7 @@ public:
         FindCaseSensitively = 2,
     };
     Q_DECLARE_FLAGS(FindFlags, FindFlag)
+    Q_FLAG(FindFlags)
 
     // must match QPageSize::PageSizeId
     enum PrintedPageSizeId {
@@ -450,7 +457,7 @@ public:
     Q_ENUM(PrintedPageOrientation)
 
     // QmlParserStatus
-    virtual void componentComplete() Q_DECL_OVERRIDE;
+    void componentComplete() override;
 
     QQuickWebEngineProfile *profile() const;
     void setProfile(QQuickWebEngineProfile *);
@@ -473,6 +480,11 @@ public:
 #endif
 
     bool activeFocusOnPress() const;
+
+    void setInspectedView(QQuickWebEngineView *);
+    QQuickWebEngineView *inspectedView() const;
+    void setDevToolsView(QQuickWebEngineView *);
+    QQuickWebEngineView *devToolsView() const;
 
 public Q_SLOTS:
     void runJavaScript(const QString&, const QJSValue & = QJSValue());
@@ -529,23 +541,31 @@ Q_SIGNALS:
     Q_REVISION(4) void fileDialogRequested(QQuickWebEngineFileDialogRequest *request);
     Q_REVISION(4) void formValidationMessageRequested(QQuickWebEngineFormValidationMessageRequest *request);
     Q_REVISION(5) void pdfPrintingFinished(const QString &filePath, bool success);
+    Q_REVISION(7) void quotaRequested(const QWebEngineQuotaRequest &request);
+    Q_REVISION(7) void geometryChangeRequested(const QRect &geometry, const QRect &frameGeometry);
+    Q_REVISION(7) void inspectedViewChanged();
+    Q_REVISION(7) void devToolsViewChanged();
+    Q_REVISION(7) void registerProtocolHandlerRequested(const QWebEngineRegisterProtocolHandlerRequest &request);
 
 #ifdef ENABLE_QML_TESTSUPPORT_API
     void testSupportChanged();
 #endif
 
 protected:
-    void geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry) Q_DECL_OVERRIDE;
-    void itemChange(ItemChange, const ItemChangeData &) Q_DECL_OVERRIDE;
-    void dragEnterEvent(QDragEnterEvent *e) Q_DECL_OVERRIDE;
-    void dragLeaveEvent(QDragLeaveEvent *e) Q_DECL_OVERRIDE;
-    void dragMoveEvent(QDragMoveEvent *e) Q_DECL_OVERRIDE;
-    void dropEvent(QDropEvent *e) Q_DECL_OVERRIDE;
+    void geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry) override;
+    void itemChange(ItemChange, const ItemChangeData &) override;
+#if QT_CONFIG(draganddrop)
+    void dragEnterEvent(QDragEnterEvent *e) override;
+    void dragLeaveEvent(QDragLeaveEvent *e) override;
+    void dragMoveEvent(QDragMoveEvent *e) override;
+    void dropEvent(QDropEvent *e) override;
+#endif // QT_CONFIG(draganddrop)
 
 private:
     Q_DECLARE_PRIVATE(QQuickWebEngineView)
     QScopedPointer<QQuickWebEngineViewPrivate> d_ptr;
 
+    friend class QQuickContextMenuBuilder;
     friend class QQuickWebEngineNewViewRequest;
     friend class QQuickWebEngineFaviconProvider;
 #ifndef QT_NO_ACCESSIBILITY

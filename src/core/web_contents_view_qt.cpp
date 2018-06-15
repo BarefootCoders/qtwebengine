@@ -158,6 +158,17 @@ ASSERT_ENUMS_MATCH(WebEngineContextMenuData::MediaControls, blink::WebContextMen
 ASSERT_ENUMS_MATCH(WebEngineContextMenuData::MediaCanPrint, blink::WebContextMenuData::kMediaCanPrint)
 ASSERT_ENUMS_MATCH(WebEngineContextMenuData::MediaCanRotate, blink::WebContextMenuData::kMediaCanRotate)
 
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanDoNone, blink::WebContextMenuData::kCanDoNone)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanUndo, blink::WebContextMenuData::kCanUndo)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanRedo, blink::WebContextMenuData::kCanRedo)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanCut, blink::WebContextMenuData::kCanCut)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanCopy, blink::WebContextMenuData::kCanCopy)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanPaste, blink::WebContextMenuData::kCanPaste)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanDelete, blink::WebContextMenuData::kCanDelete)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanSelectAll, blink::WebContextMenuData::kCanSelectAll)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanTranslate, blink::WebContextMenuData::kCanTranslate)
+ASSERT_ENUMS_MATCH(WebEngineContextMenuData::CanEditRichly, blink::WebContextMenuData::kCanEditRichly)
+
 static inline WebEngineContextMenuData fromParams(const content::ContextMenuParams &params)
 {
     WebEngineContextMenuData ret;
@@ -170,6 +181,7 @@ static inline WebEngineContextMenuData fromParams(const content::ContextMenuPara
     ret.setMediaType((WebEngineContextMenuData::MediaType)params.media_type);
     ret.setHasImageContent(params.has_image_contents);
     ret.setMediaFlags((WebEngineContextMenuData::MediaFlags)params.media_flags);
+    ret.setEditFlags((WebEngineContextMenuData::EditFlags)params.edit_flags);
     ret.setSuggestedFileName(toQt(params.suggested_filename.data()));
     ret.setIsEditable(params.is_editable);
 #if BUILDFLAG(ENABLE_SPELLCHECK)
@@ -217,6 +229,7 @@ void WebContentsViewQt::StartDragging(const content::DropData &drop_data,
                                       const content::DragEventSourceInfo &event_info,
                                       content::RenderWidgetHostImpl* source_rwh)
 {
+#if QT_CONFIG(draganddrop)
     Q_UNUSED(event_info);
 
     QPixmap pixmap;
@@ -228,11 +241,14 @@ void WebContentsViewQt::StartDragging(const content::DropData &drop_data,
     }
 
     m_client->startDragging(drop_data, toQtDropActions(allowed_ops), pixmap, hotspot);
+#endif // QT_CONFIG(draganddrop)
 }
 
 void WebContentsViewQt::UpdateDragCursor(blink::WebDragOperation dragOperation)
 {
+#if QT_CONFIG(draganddrop)
     m_client->webContentsAdapter()->updateDragAction(dragOperation);
+#endif // QT_CONFIG(draganddrop)
 }
 
 void WebContentsViewQt::TakeFocus(bool reverse)
@@ -244,6 +260,21 @@ void WebContentsViewQt::GetScreenInfo(content::ScreenInfo* results) const
 {
     if (auto rwhv = static_cast<RenderWidgetHostViewQt *>(m_webContents->GetRenderWidgetHostView()))
         rwhv->GetScreenInfo(results);
+}
+
+void WebContentsViewQt::FocusThroughTabTraversal(bool reverse)
+{
+    content::WebContentsImpl *web_contents = static_cast<content::WebContentsImpl*>(m_webContents);
+    if (web_contents->ShowingInterstitialPage()) {
+        web_contents->GetInterstitialPage()->FocusThroughTabTraversal(reverse);
+        return;
+    }
+    content::RenderWidgetHostView *fullscreen_view = web_contents->GetFullscreenRenderWidgetHostView();
+    if (fullscreen_view) {
+        fullscreen_view->Focus();
+        return;
+    }
+    web_contents->GetRenderViewHost()->SetInitialFocus(reverse);
 }
 
 

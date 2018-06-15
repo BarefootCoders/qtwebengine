@@ -95,15 +95,14 @@ public:
                         content::StoragePartition *partition,
                         storage::OptionalQuotaSettingsCallback callback) override;
     void OverrideWebkitPrefs(content::RenderViewHost *, content::WebPreferences *) override;
-    void AllowCertificateError(content::WebContents* web_contents,
-                                       int cert_error,
-                                       const net::SSLInfo& ssl_info,
-                                       const GURL& request_url,
-                                       content::ResourceType resource_type,
-                                       bool overridable,
-                                       bool strict_enforcement,
-                                       bool expired_previous_decision,
-                                       const base::Callback<void(content::CertificateRequestResultType)>& callback) override;
+    void AllowCertificateError(content::WebContents *web_contents,
+                               int cert_error,
+                               const net::SSLInfo &ssl_info,
+                               const GURL &request_url,
+                               content::ResourceType resource_type,
+                               bool strict_enforcement,
+                               bool expired_previous_decision,
+                               const base::Callback<void(content::CertificateRequestResultType)> &callback) override;
     void SelectClientCertificate(content::WebContents* web_contents,
                                          net::SSLCertRequestInfo* cert_request_info,
                                          net::ClientCertIdentityList client_certs,
@@ -113,15 +112,14 @@ public:
     std::string GetApplicationLocale() override;
     std::string GetAcceptLangs(content::BrowserContext* context) override;
     void AppendExtraCommandLineSwitches(base::CommandLine* command_line, int child_process_id) override;
+    void GetAdditionalViewSourceSchemes(std::vector<std::string>* additional_schemes) override;
     void GetAdditionalWebUISchemes(std::vector<std::string>* additional_schemes) override;
 
     void BindInterfaceRequestFromFrame(content::RenderFrameHost* render_frame_host,
                                        const std::string& interface_name,
                                        mojo::ScopedMessagePipeHandle interface_pipe) override;
-    void ExposeInterfacesToRenderer(service_manager::BinderRegistry *registry,
-                                    content::AssociatedInterfaceRegistry *associated_registry,
-                                    content::RenderProcessHost *render_process_host) override;
-
+    void RegisterInProcessServices(StaticServiceMap* services) override;
+    std::unique_ptr<base::Value> GetServiceManifestOverlay(base::StringPiece name) override;
     bool CanCreateWindow(
         content::RenderFrameHost* opener,
         const GURL& opener_url,
@@ -146,14 +144,35 @@ public:
 
     bool AllowSetCookie(const GURL& url,
                         const GURL& first_party,
-                        const std::string& cookie_line,
+                        const net::CanonicalCookie& cookie,
                         content::ResourceContext* context,
                         int render_process_id,
                         int render_frame_id,
                         const net::CookieOptions& options) override;
 
+    bool AllowAppCache(const GURL& manifest_url,
+                       const GURL& first_party,
+                       content::ResourceContext* context) override;
+
+    bool AllowServiceWorker(const GURL& scope,
+                            const GURL& first_party,
+                            content::ResourceContext* context,
+                            const base::Callback<content::WebContents*(void)>& wc_getter) override;
+
+    void AllowWorkerFileSystem(const GURL &url,
+                               content::ResourceContext *context,
+                               const std::vector<std::pair<int, int> > &render_frames,
+                               base::Callback<void(bool)> callback) override;
+
+    bool AllowWorkerIndexedDB(const GURL &url,
+                              const base::string16 &name,
+                              content::ResourceContext *context,
+                              const std::vector<std::pair<int, int> > &render_frames) override;
+
+    std::unique_ptr<device::LocationProvider> OverrideSystemLocationProvider() override;
+    void GetGeolocationRequestContext(base::OnceCallback<void(scoped_refptr<net::URLRequestContextGetter>)> callback) override;
 #if defined(Q_OS_LINUX)
-    void GetAdditionalMappedFilesForChildProcess(const base::CommandLine& command_line, int child_process_id, content::FileDescriptorInfo* mappings) override;
+    void GetAdditionalMappedFilesForChildProcess(const base::CommandLine& command_line, int child_process_id, content::PosixFileDescriptorInfo* mappings) override;
 #endif
 
 #if BUILDFLAG(ENABLE_PLUGINS)

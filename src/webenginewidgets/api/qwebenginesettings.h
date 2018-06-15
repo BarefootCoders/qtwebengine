@@ -91,7 +91,10 @@ public:
         AllowRunningInsecureContent,
         AllowGeolocationOnInsecureOrigins,
         AllowWindowActivationFromJavaScript,
-        ShowScrollBars
+        ShowScrollBars,
+        PlaybackRequiresUserGesture,
+        WebRTCPublicInterfacesOnly,
+        JavascriptCanPaste,
     };
 
     enum FontSize {
@@ -99,6 +102,12 @@ public:
         MinimumLogicalFontSize,
         DefaultFontSize,
         DefaultFixedFontSize
+    };
+
+    enum UnknownUrlSchemePolicy {
+        DisallowUnknownUrlSchemes = 1,
+        AllowUnknownUrlSchemesFromUserInteraction,
+        AllowAllUnknownUrlSchemes
     };
 
 #if QT_DEPRECATED_SINCE(5, 5)
@@ -120,6 +129,10 @@ public:
 
     void setDefaultTextEncoding(const QString &encoding);
     QString defaultTextEncoding() const;
+
+    UnknownUrlSchemePolicy unknownUrlSchemePolicy() const;
+    void setUnknownUrlSchemePolicy(UnknownUrlSchemePolicy policy);
+    void resetUnknownUrlSchemePolicy();
 
 private:
     Q_DISABLE_COPY(QWebEngineSettings)

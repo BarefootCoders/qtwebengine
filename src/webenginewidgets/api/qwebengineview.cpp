@@ -43,16 +43,11 @@
 #include "qwebenginepage_p.h"
 #include "web_contents_adapter.h"
 
-#ifdef QT_UI_DELEGATES
-#include "ui/messagebubblewidget_p.h"
-#endif
-
 #include <QAction>
 #include <QMenu>
 #include <QContextMenuEvent>
-#include <QPageLayout>
-#include <QStackedLayout>
 #include <QToolTip>
+#include <QVBoxLayout>
 
 QT_BEGIN_NAMESPACE
 
@@ -141,18 +136,15 @@ QWebEngineView::QWebEngineView(QWidget *parent)
     d->q_ptr = this;
     setAcceptDrops(true);
 
-    // This causes the child RenderWidgetHostViewQtDelegateWidgets to fill this widget.
-    setLayout(new QStackedLayout);
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->setContentsMargins(0, 0, 0, 0);
+    setLayout(layout);
 }
 
 QWebEngineView::~QWebEngineView()
 {
     Q_D(QWebEngineView);
     QWebEngineViewPrivate::bind(0, d->page);
-
-#ifdef QT_UI_DELEGATES
-    QtWebEngineWidgetUI::MessageBubbleWidget::hideBubble();
-#endif
 }
 
 QWebEnginePage* QWebEngineView::page() const
@@ -370,6 +362,7 @@ void QWebEngineView::hideEvent(QHideEvent *event)
     page()->d_ptr->wasHidden();
 }
 
+#if QT_CONFIG(draganddrop)
 /*!
     \reimp
 */
@@ -426,6 +419,7 @@ void QWebEngineView::dropEvent(QDropEvent *e)
     d->page->d_ptr->adapter->endDragging(e->pos(), mapToGlobal(e->pos()));
     d->m_dragEntered = false;
 }
+#endif // QT_CONFIG(draganddrop)
 
 #ifndef QT_NO_ACCESSIBILITY
 int QWebEngineViewAccessible::childCount() const

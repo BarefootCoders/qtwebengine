@@ -51,6 +51,7 @@
 #if BUILDFLAG(ENABLE_BASIC_PRINTING)
 #include "chrome/browser/printing/print_job_manager.h"
 #endif // defined(ENABLE_BASIC_PRINTING)
+#include "components/viz/common/features.h"
 #include "components/web_cache/browser/web_cache_manager.h"
 #include "content/browser/devtools/devtools_http_handler.h"
 #include "content/browser/gpu/gpu_main_thread_factory.h"
@@ -70,8 +71,10 @@
 #include "content/utility/in_process_utility_thread.h"
 #include "gpu/command_buffer/service/gpu_switches.h"
 #include "gpu/ipc/host/gpu_switches.h"
+#include "media/audio/audio_manager.h"
 #include "net/base/port_util.h"
 #include "ppapi/features/features.h"
+#include "services/service_manager/sandbox/switches.h"
 #include "ui/events/event_switches.h"
 #include "ui/native_theme/native_theme_features.h"
 #include "ui/gl/gl_switches.h"
@@ -84,12 +87,14 @@
 #include "content_browser_client_qt.h"
 #include "content_client_qt.h"
 #include "content_main_delegate_qt.h"
-#include "dev_tools_http_handler_delegate_qt.h"
+#include "devtools_manager_delegate_qt.h"
 #include "gl_context_qt.h"
 #include "media_capture_devices_dispatcher.h"
+#include "net/webui_controller_factory_qt.h"
 #include "type_conversion.h"
-#include "surface_factory_qt.h"
+#include "ozone/surface_factory_qt.h"
 #include "web_engine_library_info.h"
+
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QOffscreenSurface>
@@ -235,7 +240,7 @@ WebEngineContext::~WebEngineContext()
     Q_ASSERT(!m_browserRunner);
 }
 
-scoped_refptr<WebEngineContext> WebEngineContext::current()
+WebEngineContext *WebEngineContext::current()
 {
     if (s_destroyed)
         return nullptr;
@@ -246,7 +251,7 @@ scoped_refptr<WebEngineContext> WebEngineContext::current()
         // Add a false reference so there is no race between unreferencing sContext and a global QApplication.
         sContext->AddRef();
     }
-    return sContext;
+    return sContext.get();
 }
 
 QSharedPointer<BrowserContextAdapter> WebEngineContext::defaultBrowserContext()
@@ -268,6 +273,17 @@ QObject *WebEngineContext::globalQObject()
 
 const static char kChromiumFlagsEnv[] = "QTWEBENGINE_CHROMIUM_FLAGS";
 const static char kDisableSandboxEnv[] = "QTWEBENGINE_DISABLE_SANDBOX";
+
+static void appendToFeatureSwitch(base::CommandLine *commandLine, const char *featureSwitch, const char *feature)
+{
+    if (!commandLine->HasSwitch(featureSwitch)) {
+        commandLine->AppendSwitchASCII(featureSwitch, feature);
+    } else {
+        std::string featureList = commandLine->GetSwitchValueASCII(featureSwitch);
+        featureList = featureList + "," + feature;
+        commandLine->AppendSwitchASCII(featureSwitch, featureList);
+    }
+}
 
 WebEngineContext::WebEngineContext()
     : m_mainDelegate(new ContentMainDelegateQt)
@@ -330,7 +346,7 @@ WebEngineContext::WebEngineContext()
 #if defined(Q_OS_WIN)
         parsedCommandLine->AppendSwitch(switches::kNoSandbox);
 #elif defined(Q_OS_LINUX)
-        parsedCommandLine->AppendSwitch(switches::kDisableSetuidSandbox);
+        parsedCommandLine->AppendSwitch(service_manager::switches::kDisableSetuidSandbox);
 #endif
     } else {
         parsedCommandLine->AppendSwitch(switches::kNoSandbox);
@@ -347,9 +363,6 @@ WebEngineContext::WebEngineContext()
 
     // The Mojo local-storage is currently pretty broken and saves in $$PWD/Local\ Storage
     parsedCommandLine->AppendSwitch(switches::kDisableMojoLocalStorage);
-
-    // Shared workers are not safe until Chromium 64
-    parsedCommandLine->AppendSwitch(switches::kDisableSharedWorkers);
 
 #if defined(Q_OS_MACOS)
     // Accelerated decoding currently does not work on macOS due to issues with OpenGL Rectangle
@@ -371,16 +384,18 @@ WebEngineContext::WebEngineContext()
     // get rid of the warnings.
     parsedCommandLine->AppendSwitch(switches::kDisableES3GLContext);
 #endif
-
     // Needed to allow navigations within pages that were set using setHtml(). One example is
     // tst_QWebEnginePage::acceptNavigationRequest.
     // This is deprecated behavior, and will be removed in a future Chromium version, as per
     // upstream Chromium commit ba52f56207a4b9d70b34880fbff2352e71a06422.
-    parsedCommandLine->AppendSwitchASCII(switches::kEnableFeatures,
-                                         features::kAllowContentInitiatedDataUrlNavigations.name);
+    appendToFeatureSwitch(parsedCommandLine, switches::kEnableFeatures, features::kAllowContentInitiatedDataUrlNavigations.name);
+    // Surface synchronization breaks our current graphics integration (since 65)
+    appendToFeatureSwitch(parsedCommandLine, switches::kDisableFeatures, features::kEnableSurfaceSynchronization.name);
+    // Scroll latching expects phases on all wheel events when it really only makes sense for simulated ones.
+    appendToFeatureSwitch(parsedCommandLine, switches::kDisableFeatures, features::kTouchpadAndWheelScrollLatching.name);
 
     if (useEmbeddedSwitches) {
-        parsedCommandLine->AppendSwitchASCII(switches::kEnableFeatures, features::kOverlayScrollbar.name);
+        appendToFeatureSwitch(parsedCommandLine, switches::kEnableFeatures, features::kOverlayScrollbar.name);
         if (!parsedCommandLine->HasSwitch(switches::kDisablePinch))
             parsedCommandLine->AppendSwitch(switches::kEnablePinch);
         parsedCommandLine->AppendSwitch(switches::kEnableViewport);
@@ -389,8 +404,10 @@ WebEngineContext::WebEngineContext()
         parsedCommandLine->AppendSwitch(switches::kDisableGpuShaderDiskCache);
         parsedCommandLine->AppendSwitch(switches::kDisable2dCanvasAntialiasing);
         parsedCommandLine->AppendSwitch(cc::switches::kDisableCompositedAntialiasing);
-        parsedCommandLine->AppendSwitchASCII(switches::kProfilerTiming, switches::kProfilerTimingDisabledValue);
     }
+    base::FeatureList::InitializeInstance(
+        parsedCommandLine->GetSwitchValueASCII(switches::kEnableFeatures),
+        parsedCommandLine->GetSwitchValueASCII(switches::kDisableFeatures));
 
     GLContextHelper::initialize();
 
@@ -464,7 +481,6 @@ WebEngineContext::WebEngineContext()
                     }
                 }
             }
-
             if (qt_gl_global_share_context()->format().profile() == QSurfaceFormat::CompatibilityProfile)
                 parsedCommandLine->AppendSwitch(switches::kCreateDefaultGLContext);
         } else {
@@ -520,6 +536,10 @@ WebEngineContext::WebEngineContext()
         net::SetExplicitlyAllowedPorts(allowedPorts);
     }
 
+#if defined(OS_LINUX)
+    media::AudioManager::SetGlobalAppName(QCoreApplication::applicationName().toStdString());
+#endif
+
 #if BUILDFLAG(ENABLE_PLUGINS)
     // Creating pepper plugins from the page (which calls PluginService::GetPluginInfoArray)
     // might fail unless the page queried the list of available plugins at least once
@@ -533,6 +553,8 @@ WebEngineContext::WebEngineContext()
 #if BUILDFLAG(ENABLE_BASIC_PRINTING)
     m_printJobManager.reset(new printing::PrintJobManager());
 #endif // defined(ENABLE_BASIC_PRINTING)
+
+    content::WebUIControllerFactory::RegisterFactory(WebUIControllerFactoryQt::GetInstance());
 }
 
 #if BUILDFLAG(ENABLE_BASIC_PRINTING)
