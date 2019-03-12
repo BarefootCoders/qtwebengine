@@ -1,0 +1,29 @@
+version: 2
+jobs:
+  build:
+    macos:
+      xcode: "9.0"
+    working_directory: ~/qtwebengine
+    steps:
+      - checkout
+      - run: git submodule sync
+      - run: git submodule update --init
+      - run: 
+          name: Install dependencies
+          command: |
+            brew install ninja
+            brew install ./.circleci/qt.rb
+      - run:
+          name: Prepare for build
+          command: |
+            rm -rf examples
+      - run:
+          name: Build
+          command: |
+            /usr/local/opt/qt/bin/qmake -r CONFIG+=release PREFIX=/usr/local/Cellar/qt5/5.10.1 && make && INSTALL_ROOT=$HOME/out make install
+      - run: 
+          name: Archive artifacts
+          command: |
+            mkdir -p $CIRCLE_ARTIFACTS && tar -cjf $CIRCLE_ARTIFACTS/qtwebengine.tar.bz2 -C $HOME/out .
+      - store_artifacts:
+          path: build/bin/Blindcut.zip
