@@ -2025,6 +2025,12 @@ QString QWebEnginePage::title() const
     return d->adapter->pageTitle();
 }
 
+int QWebEnginePage::frameId() const
+{
+    Q_D(const QWebEnginePage);
+    return d->adapter->frameId();
+}
+
 void QWebEnginePage::setUrl(const QUrl &url)
 {
     Q_D(QWebEnginePage);

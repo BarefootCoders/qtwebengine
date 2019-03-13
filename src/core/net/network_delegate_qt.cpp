@@ -214,7 +214,6 @@ int NetworkDelegateQt::OnBeforeURLRequest(net::URLRequest *request, net::Complet
     Q_ASSERT(m_profileIOData);
 
     const content::ResourceRequestInfo *resourceInfo = content::ResourceRequestInfo::ForRequest(request);
-
     content::ResourceType resourceType = content::RESOURCE_TYPE_LAST_TYPE;
     WebContentsAdapterClient::NavigationType navigationType = WebContentsAdapterClient::OtherNavigation;
 
@@ -233,11 +232,14 @@ int NetworkDelegateQt::OnBeforeURLRequest(net::URLRequest *request, net::Complet
 
     QWebEngineUrlRequestInterceptor* interceptor = m_profileIOData->acquireInterceptor();
     if (interceptor) {
+        int render_process_id = -1;
+        int render_frame_id = -1;
+        resourceInfo->GetAssociatedRenderFrame(&render_process_id, &render_frame_id);
         QWebEngineUrlRequestInfoPrivate *infoPrivate = new QWebEngineUrlRequestInfoPrivate(toQt(resourceType),
                                                                                            toQt(navigationType),
                                                                                            qUrl,
                                                                                            firstPartyUrl,
-                                                                                           QByteArray::fromStdString(request->method()));
+                                                                                           QByteArray::fromStdString(request->method()), render_process_id);
         QWebEngineUrlRequestInfo requestInfo(infoPrivate);
         interceptor->interceptRequest(requestInfo);
         m_profileIOData->releaseInterceptor();
@@ -263,6 +265,7 @@ int NetworkDelegateQt::OnBeforeURLRequest(net::URLRequest *request, net::Complet
         return net::OK;
 
     int frameTreeNodeId = resourceInfo->GetFrameTreeNodeId();
+
     // Only intercept MAIN_FRAME and SUB_FRAME with an associated render frame.
     if (!content::IsResourceTypeFrame(resourceType) || frameTreeNodeId == -1)
         return net::OK;

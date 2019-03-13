@@ -1652,6 +1652,12 @@ bool WebContentsAdapter::canViewSource()
     return m_webContents->GetController().CanViewSource();
 }
 
+int WebContentsAdapter::frameId()
+{
+    CHECK_INITIALIZED(false);
+    return m_webContents->GetMainFrame()->GetProcess()->GetID();
+}
+
 ASSERT_ENUMS_MATCH(WebContentsAdapterClient::UnknownDisposition, WindowOpenDisposition::UNKNOWN)
 ASSERT_ENUMS_MATCH(WebContentsAdapterClient::CurrentTabDisposition, WindowOpenDisposition::CURRENT_TAB)
 ASSERT_ENUMS_MATCH(WebContentsAdapterClient::SingletonTabDisposition, WindowOpenDisposition::SINGLETON_TAB)

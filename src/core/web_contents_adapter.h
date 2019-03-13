@@ -215,6 +215,7 @@ public:
     void replaceMisspelling(const QString &word);
     void viewSource();
     bool canViewSource();
+    int frameId();
     void focusIfNecessary();
     bool isFindTextInProgress() const;
 

@@ -269,6 +269,7 @@ public:
     QUrl requestedUrl() const;
     QUrl iconUrl() const;
     QIcon icon() const;
+    int frameId() const;
 
     qreal zoomFactor() const;
     void setZoomFactor(qreal factor);

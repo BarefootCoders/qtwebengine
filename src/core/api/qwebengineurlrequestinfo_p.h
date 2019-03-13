@@ -73,7 +73,7 @@ public:
                                     , QWebEngineUrlRequestInfo::NavigationType navigation
                                     , const QUrl &u
                                     , const QUrl &fpu
-                                    , const QByteArray &m);
+                                    , const QByteArray &m, const int &f);
 
     QWebEngineUrlRequestInfo::ResourceType resourceType;
     QWebEngineUrlRequestInfo::NavigationType navigationType;
@@ -82,6 +82,7 @@ public:
     QUrl url;
     QUrl firstPartyUrl;
     const QByteArray method;
+    int frameId;
     bool changed;
     QHash<QByteArray, QByteArray> extraHeaders;
 

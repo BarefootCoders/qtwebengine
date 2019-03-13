@@ -126,13 +126,14 @@ ASSERT_ENUMS_MATCH(QtWebEngineCore::WebContentsAdapterClient::OtherNavigation, Q
 */
 
 
-QWebEngineUrlRequestInfoPrivate::QWebEngineUrlRequestInfoPrivate(QWebEngineUrlRequestInfo::ResourceType resource, QWebEngineUrlRequestInfo::NavigationType navigation, const QUrl &u, const QUrl &fpu, const QByteArray &m)
+QWebEngineUrlRequestInfoPrivate::QWebEngineUrlRequestInfoPrivate(QWebEngineUrlRequestInfo::ResourceType resource, QWebEngineUrlRequestInfo::NavigationType navigation, const QUrl &u, const QUrl &fpu, const QByteArray &m, const int &f)
     : resourceType(resource)
     , navigationType(navigation)
     , shouldBlockRequest(false)
     , url(u)
     , firstPartyUrl(fpu)
     , method(m)
+    , frameId(f)
     , changed(false)
 {
 }
@@ -249,6 +250,11 @@ QUrl QWebEngineUrlRequestInfo::firstPartyUrl() const
 QByteArray QWebEngineUrlRequestInfo::requestMethod() const
 {
     return d_ptr->method;
+}
+
+int QWebEngineUrlRequestInfo::frameId() const
+{
+    return d_ptr->frameId;
 }
 
 /*!

@@ -96,6 +96,7 @@ public:
     QUrl requestUrl() const;
     QUrl firstPartyUrl() const;
     QByteArray requestMethod() const;
+    int frameId() const;
     bool changed() const;
 
     void block(bool shouldBlock);
